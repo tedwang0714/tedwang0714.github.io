@@ -1,0 +1,87 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="format-detection" content="telephone=no"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black"><meta name="keywords" content="博铭是个傻宝宝, 专属匣宝宝"><meta name="description" content="大数据学习"><title>tedata...</title><link rel="icon" href="/images/icons/favicon-16x16.png?v=1.7.0" type="image/png" sizes="16x16"><link rel="icon" href="/images/icons/favicon-32x32.png?v=1.7.0" type="image/png" sizes="32x32"><link rel="dns-prefetch" href="https://cdn.jsdelivr.net"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" type="text/css"><link rel="stylesheet" href="/css/index.css?v=1.7.0"><script>var Stun = window.Stun || {};
+var CONFIG = {
+  root: '/',
+  algolia: undefined,
+  fontawesome: {"prefix":"fa"},
+  sidebar: {"offsetTop":"20px","tocMaxDepth":6},
+  header: {"enable":true,"showOnPost":true,"scrollDownIcon":false},
+  post_widget: {"end_text":true},
+  night_mode: {"enable":true},
+  back2top: {"enable":true},
+  codeblock: {"style":"default","highlight":"light","word_wrap":false},
+  reward: false,
+  fancybox: false,
+  zoom_image: {"enable":true,"mask_color":"rgba(0,0,0,0.6)"},
+  gallery_waterfall: undefined,
+  lazyload: undefined,
+  pjax: undefined,
+  external_link: {"icon":{"enable":true,"name":"external-link"}},
+  shortcuts: undefined,
+  prompt: {"copy_success":"Copy Success","copy_error":"Copy Error","creative_commons":"Creative Commons","copy_button":"Copy"}
+};
+
+window.CONFIG = CONFIG;</script><meta name="generator" content="Hexo 4.2.0"></head><body><div class="container" id="container"><header class="header" id="header"><div class="header-inner"><nav class="header-nav header-nav--fixed"><div class="header-nav-inner"><div class="header-nav-btn fa fa-bars"></div><div class="header-nav-menu"><div class="header-nav-menu-item"><a class="header-nav-menu-item__a" href="/"><i class="fa fa-home"></i>Home</a></div><div class="header-nav-menu-item"><a class="header-nav-menu-item__a" href="/archives/"><i class="fa fa-folder-open"></i>Archives</a></div></div><div class="header-nav-mode"><div class="mode"><div class="mode-track"><span class="mode-track-moon"></span><span class="mode-track-sun"></span></div><div class="mode-thumb"></div></div></div></div></nav><div class="header-info"><div class="header-info-inner"><div class="header-info-title">专属匣宝宝</div><div class="header-info-subtitle"></div></div></div></div></header><main class="main" id="main"><div class="main-inner"><div class="content-wrap" id="content-wrap"><div class="content"><div id="is-post"></div><div class="post"><header class="post-header"><h1 class="post-header-title">tedata...</h1><div class="post-header-meta"><span class="post-header-meta-create"><i class="fa fa-calendar-o"></i><span>Posted </span><span>2019-10-10</span></span><span class="post-header-meta-update"><i class="fa fa-calendar-check-o"></i><span>updated </span><span>2020-02-12</span></span></div></header><div class="post-body"><p>scala 种种</p>
+<p>学习目标：</p>
+<p>scala 隐式转换</p>
+<p>scala 伴生对象和伴生类</p>
+<p>scala 模式匹配</p>
+<p>scala 泛型 </p>
+<p>scala 偏函数</p>
+<p>scala 类边界</p>
+<p>一.  scala 隐式转换</p>
+<p>隐式实例一<br>def main(args: Array[String]): Unit = {<br>    implicit def shop2supermarket(shop: Shop) = new Supermarket(“foods”)<br>    val shop = new Shop()<br>    shop.restrant()<br>  }<br>}<br>class Shop()<br>class Supermarket(goods: String) {<br>  def restrant(): Unit = {<br>    println(s”supermarket has restrant…, so many $goods”)<br>  }<br>}<br>该隐式转换实现了 把 shop 类拥有了 supermarket 类的变量 和 方法</p>
+<p>隐式转换的套路是：</p>
+<p>implicit def 普通类2牛逼类(普通类变量：普通类) = new 牛逼类(参数)</p>
+<p>隐式实例二<br> def main(args: Array[String]): Unit = {<br>    implicit def file2richfile(file: File): RichFile0211 = new RichFile0211(file)<br>    val file = new File(“D:\Program Files (x86)\IdeaProject\tedata-spark\data\emp.txt”)<br>    val data = file.read()<br>    println(data)<br>  }<br>}</p>
+<p>class RichFile0211(file: File) {<br>  def read()= {<br>    Source.fromFile(file).mkString<br>  }<br>}</p>
+<p>通过 RichFile 类，使得 java 的File 能够 通过 scala 的Source 类 读取数据，实现了read方法</p>
+<p>隐式实例三<br>  def main(args: Array[String]): Unit = {</p>
+<pre><code>implicit val speaking = &quot;Peach World&quot;
+
+sayHello
+sayHello(&quot;ok&quot;)</code></pre><p>  }</p>
+<p>  def sayHello(implicit word:String): Unit = {<br>    println(s”speak loud this word: $word”)<br>  }</p>
+<p>sayHello方法，即使没有传入变量，但由于 隐式转换的存在，使得  implicit val speaking = “Peach World” 去匹配 String 类型的参数，传入给函数</p>
+<p>隐式实例四<br>  implicit val a = 3<br>  println(add(2)(3))<br>}</p>
+<p>def add(x: Int)(y: Int)(implicit z: Int)={<br>   x + y +z<br>}</p>
+<p>隐式转换一定要写在最后的变量里面，否则会报错</p>
+<p>def add(x: Int)(implicit y: Int, z: Int)={<br>   x + y +z<br>}<br>可以这样写，表示 y，z都是隐式转换的变量<br>调用写成 add(10)</p>
+<p>def add(x: Int)(y: Int)(implicit z: Int)={<br>   x + y +z<br>}<br>这样写，表示 只有z 是隐式变量<br>函数调用要 写成 add(9)(10)</p>
+<p>二. 伴生类和伴生对象</p>
+<p>  def main(args: Array[String]): Unit = {</p>
+<p>// new 的是 ApplyTest 的class 类<br>    val applytest0211 = new ApplyTest0211()</p>
+<p>// 不带 new 的 类 实例化的是 Object 类，调用 apply 方法时，<br>实际上也 进行了 new 的方法<br>    val test0211 = ApplyTest0211<br>    test0211.apply()<br>// object 可以直接调用方法<br>    ApplyTest0211.static()</p>
+<p>  }</p>
+<p>}</p>
+<p>class ApplyTest0211() {<br>  def apply: Unit = {<br>    println(“this is class applytest 0211”)<br>  }<br>}</p>
+<p>object ApplyTest0211 {</p>
+<p>  def static(): Unit = {<br>    println(“this is static…”)<br>  }</p>
+<p>  def apply(): Unit = {<br>    println(“this is object applytest 0211 “)<br>    new ApplyTest0211()<br>  }<br>}</p>
+<p>三. 模式匹配</p>
+<p>  def main(args: Array[String]): Unit = {</p>
+<pre><code>val names = Array(&quot;bm&quot;, &quot;nn&quot;, &quot;xz&quot;)
+val name = names(Random.nextInt(names.length))
+
+
+
+name match {
+  case &quot;bm&quot; =&gt; println(&quot;大胖小子&quot;)
+  case &quot;nn&quot; =&gt; println(&quot;阳光胖小子&quot;)
+  case &quot;xz&quot; =&gt; println(&quot;小宝宝&quot;)
+}
+matchType(List(1))
+
+val classes = Array(Fruit, Light, Phone)
+val className = classes(Random.nextInt(classes.length))</code></pre><p>//    val phone = Phone(111,222)</p>
+<pre><code>className match {
+  case Fruit =&gt; println(&quot;百果园还行&quot;)
+  case Light =&gt; println(&quot;光照时间长&quot;)
+  case Phone =&gt; Phone(111,222).content
+}</code></pre><p>  }</p>
+<p>  def matchType(obj: Any)= obj match  {<br>    case obj: Int =&gt; println(“整形”)<br>    case obj: String =&gt; println(“字符串”)<br>    case _ =&gt; println(“其他”)<br>  }<br>}</p>
+<p>case class Fruit(location: String, weight: Double)<br>case class Light(level: Int, lightNum: Int)<br>case class Phone(weight: Double, screenSize: Double) {<br>  def content: Unit = {<br>    println(s”weight: $weight, screenSize: $screenSize”)</p>
+<p>  }<br>}</p>
+<p>四. 泛型<br>  def main(args: Array[String]): Unit = {<br>    val mm1 = new MM0211[Int, cupNum, Double](90, cupNum.D, 168.2)<br>    mm1.info()<br>  }<br>}</p>
+<p>class MM0211[K, T, V](fv: K, cupNum: T, height: V) {<br>  def info(): Unit = {<br>    println(s”fv: $fv, cup: $cupNum, height: $height”)<br>  }<br>}</p>
+<p>object cupNum extends Enumeration {<br>  type cupNum = Value<br>  val A,B,C,D,E = Value<br>}</p>
+</div><footer class="post-footer"><div class="post-end"><p><span>------ </span><span>End of the article, thanks for your reading</span><span> ------</span></p></div><div class="post-copyright"><div class="post-copyright-author"><span class="post-copyright-author-name">Author: </span><span class="post-copyright-author-value"><a href="http://yoursite.com">博铭是个傻宝宝</a></span></div><div class="post-copyright-link"><span class="post-copyright-link-name">Link: </span><span class="post-copyright-link-value"><a href="http://yoursite.com/2019/10/10/scala%20%E7%A7%8D%E7%A7%8D/">http://yoursite.com/2019/10/10/scala%20%E7%A7%8D%E7%A7%8D/</a></span></div><div class="post-copyright-notice"><span class="post-copyright-notice-name">Copyright: </span><span class="post-copyright-notice-value">All articles in this blog are licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en" rel="external nofollow" target="_blank">BY-NC-SA</a> unless stating additionally</span></div></div><div class="post-tags"><span class="post-tags-item"><i class="post-tags-item__i fa fa-tags"></i><a class="post-tags-item__a" href="http://yoursite.com/tags/tedata/">tedata</a></span></div><nav class="paginator"><div class="paginator-post"><div class="paginator-post-prev"><a href="/2020/02/12/hello-world/"><i class="fa fa-chevron-left"></i><span>Hello World</span></a></div><div class="paginator-post-next"><a href="/2017/03/07/Spark%20Core%2002/"><span>Spark Core 第二课</span><i class="fa fa-chevron-right"></i></a></div></div></nav></footer></div></div></div><aside class="sidebar" id="sidebar"><div class="sidebar-inner"><div class="sidebar-nav"><span class="sidebar-nav-toc current">Catalog</span><span class="sidebar-nav-ov">Overview</span></div><section class="sidebar-toc"><div></div></section><!-- ov = overview --><section class="sidebar-ov hide"><div class="sidebar-ov-author"><div class="sidebar-ov-author__avatar"><img class="sidebar-ov-author__avatar_img" src="/images/avatar.png" alt="avatar"></div><p class="sidebar-ov-author__p">hello world</p></div><div class="sidebar-ov-state"><a class="sidebar-ov-state__a posts" href="/archives/"><div class="sidebar-ov-state__a--count">4</div><div class="sidebar-ov-state__a--name">Archives</div></a></div><div class="sidebar-ov-cc"><a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en" target="_blank" rel="noopener" data-popover="Creative Commons" data-popover-pos="up"><img src="/images/cc-by-nc-sa.svg" alt="Creative Commons"></a></div></section><div class="sidebar-reading"><div class="sidebar-reading-info"><span>You have read </span><span class="sidebar-reading-info-num">0</span></div><div class="sidebar-reading-line"></div></div></div></aside><div class="clearfix"></div></div></main><footer class="footer" id="footer"><div class="footer-inner"><div><span>Copyright &copy; 2020</span><span class="fa fa-heart footer-icon"></span><span>博铭是个傻宝宝.</span></div><div><span>Powered by <a href="http://hexo.io/" title="hexo" target="_blank" rel="noopener">hexo</a></span><span> v4.2.0.</span><span class="separator">|</span><span>Theme - <a href="https://github.com/liuyib/hexo-theme-stun/" title="stun" target="_blank" rel="noopener">stun</a></span><span> v1.7.0.</span></div></div></footer><div class="loading-bar" id="loading-bar"><div class="progress"></div></div><div class="back2top" id="back2top"><i class="back2top-icon fa fa-rocket"></i></div></div><script src="https://cdn.jsdelivr.net/npm/jquery@v3.4.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/velocity-animate@1.5.2/velocity.min.js"></script><script src="https://cdn.jsdelivr.net/npm/velocity-animate@1.5.2/velocity.ui.min.js"></script><script src="/js/utils.js?v=1.7.0"></script><script src="/js/stun-boot.js?v=1.7.0"></script><script src="/js/scroll.js?v=1.7.0"></script><script src="/js/header.js?v=1.7.0"></script><script src="/js/sidebar.js?v=1.7.0"></script></body></html>

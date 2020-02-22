@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="大数据学习" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    Flink Watermarks介绍 |  TedWang 的大数据
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-Flinkwatermarks" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  Flink Watermarks介绍
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2018/08/25/Flinkwatermarks/" class="article-date">
+  <time datetime="2018-08-25T12:43:27.000Z" itemprop="datePublished">2018-08-25</time>
+</a>
+      
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">2.8k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">11分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="Flink-Watermarks-介绍"><a href="#Flink-Watermarks-介绍" class="headerlink" title="Flink Watermarks 介绍"></a>Flink Watermarks 介绍</h1><h3 id="一、watermark的概念"><a href="#一、watermark的概念" class="headerlink" title="一、watermark的概念"></a>一、watermark的概念</h3><p>watermark是一种衡量Event Time进展的机制，它是数据本身的一个隐藏属性。通常基于Event Time的数据，自身都包含一个timestamp，例如1472693399700（2016-09-01 09:29:59.700），而这条数据的watermark时间则可能是：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">watermark(1472693399700) &#x3D; 1472693396700(2016-09-0109:29:56.700)</span><br></pre></td></tr></table></figure>
+
+
+<p>这条数据的watermark时间是什么含义呢？即：timestamp小于1472693396700(2016-09-01 09:29:56.700)的数据，都已经到达了。</p>
+<p><img src="/2018/08/25/Flinkwatermarks/w1.png" alt="avatar"></p>
+<p>图中蓝色虚线和实线代表着watermark的时间。</p>
+<h3 id="二、watermark有什么用？"><a href="#二、watermark有什么用？" class="headerlink" title="二、watermark有什么用？"></a>二、watermark有什么用？</h3><p>watermark是用于处理乱序事件的，而正确的处理乱序事件，通常用watermark机制结合window来实现。</p>
+<p>我们知道，流处理从事件产生，到流经source，再到operator，中间是有一个过程和时间的。虽然大部分情况下，流到operator的数据都是按照事件产生的时间顺序来的，但是也不排除由于网络、背压等原因，导致乱序的产生（out-of-order或者说late element）。</p>
+<p>但是对于late element，我们又不能无限期的等下去，必须要有个机制来保证一个特定的时间后，必须触发window去进行计算了。这个特别的机制，就是watermark。</p>
+<h3 id="三、watermark如何分配？"><a href="#三、watermark如何分配？" class="headerlink" title="三、watermark如何分配？"></a>三、watermark如何分配？</h3><p>通常，在接收到source的数据后，应该立刻生成watermark；但是，也可以在source后，应用简单的map或者filter操作，然后再生成watermark。</p>
+<p>生成watermark的方式主要有2大类：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(1):WithPeriodicWatermarks</span><br><span class="line">(2):WithPunctuatedWatermarks</span><br></pre></td></tr></table></figure>
+
+<p>第一种可以定义一个最大允许乱序的时间，这种情况应用较多。</p>
+<p>我们主要来围绕Periodic Watermarks来说明，下面是生成periodic watermark的方法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;**</span><br><span class="line"> * This generator generates watermarks assuming that elements come out of order to a certain degree only.</span><br><span class="line"> * The latest elements for a certain timestamp t will arrive at most n milliseconds after the earliest</span><br><span class="line"> * elements for timestamp t.</span><br><span class="line"> *&#x2F;</span><br><span class="line">class BoundedOutOfOrdernessGenerator extends AssignerWithPeriodicWatermarks[MyEvent] &#123;</span><br><span class="line"></span><br><span class="line">    val maxOutOfOrderness &#x3D; 3500L; &#x2F;&#x2F; 3.5 seconds</span><br><span class="line"></span><br><span class="line">    var currentMaxTimestamp: Long;</span><br><span class="line"></span><br><span class="line">    override def extractTimestamp(element: MyEvent, previousElementTimestamp: Long): Long &#x3D; &#123;</span><br><span class="line">        val timestamp &#x3D; element.getCreationTime()</span><br><span class="line">        currentMaxTimestamp &#x3D; max(timestamp, currentMaxTimestamp)</span><br><span class="line">        timestamp;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    override def getCurrentWatermark(): Watermark &#x3D; &#123;</span><br><span class="line">        &#x2F;&#x2F; return the watermark as current highest timestamp minus the out-of-orderness bound</span><br><span class="line">        new Watermark(currentMaxTimestamp - maxOutOfOrderness);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>程序中有一个extractTimestamp方法，就是根据数据本身的Event time来获取；还有一个getCurrentWatermar方法，<br>是用currentMaxTimestamp - maxOutOfOrderness来获取的。</p>
+<p>这里的概念有点抽象，下面我们结合数据，在window中来实际演示下每个element的timestamp和watermark是多少，以及何时触发window。</p>
+<h3 id="四、生成并跟踪watermark代码"><a href="#四、生成并跟踪watermark代码" class="headerlink" title="四、生成并跟踪watermark代码"></a>四、生成并跟踪watermark代码</h3><p>4.1、程序说明</p>
+<p>我们从socket接收数据，然后经过map后立刻抽取timetamp并生成watermark，之后应用window来看看watermark和event time如何变化，才导致window被触发的。</p>
+<p>4.2、代码如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line">import java.text.SimpleDateFormat</span><br><span class="line"></span><br><span class="line">import org.apache.flink.streaming.api.scala._</span><br><span class="line">import org.apache.flink.streaming.api.TimeCharacteristic</span><br><span class="line">import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks</span><br><span class="line">import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment</span><br><span class="line">import org.apache.flink.streaming.api.scala.function.WindowFunction</span><br><span class="line">import org.apache.flink.streaming.api.watermark.Watermark</span><br><span class="line">import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows</span><br><span class="line">import org.apache.flink.streaming.api.windowing.time.Time</span><br><span class="line">import org.apache.flink.streaming.api.windowing.windows.TimeWindow</span><br><span class="line">import org.apache.flink.util.Collector</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">object WatermarkTest &#123;</span><br><span class="line"></span><br><span class="line">  def main(args: Array[String]): Unit &#x3D; &#123;</span><br><span class="line">    if (args.length !&#x3D; 2) &#123;</span><br><span class="line">      System.err.println(&quot;USAGE:\nSocketWatermarkTest &lt;hostname&gt; &lt;port&gt;&quot;)</span><br><span class="line">      return</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    val hostName &#x3D; args(0)</span><br><span class="line">    val port &#x3D; args(1).toInt</span><br><span class="line"></span><br><span class="line">    val env &#x3D; StreamExecutionEnvironment.getExecutionEnvironment</span><br><span class="line">    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)</span><br><span class="line"></span><br><span class="line">    val input &#x3D; env.socketTextStream(hostName,port)</span><br><span class="line"></span><br><span class="line">    val inputMap &#x3D; input.map(f&#x3D;&gt; &#123;</span><br><span class="line">      val arr &#x3D; f.split(&quot;\\W+&quot;)</span><br><span class="line">      val code &#x3D; arr(0)</span><br><span class="line">      val time &#x3D; arr(1).toLong</span><br><span class="line">      (code,time)</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    val watermark &#x3D; inputMap.assignTimestampsAndWatermarks(new AssignerWithPeriodicWatermarks[(String,Long)] &#123;</span><br><span class="line"></span><br><span class="line">      var currentMaxTimestamp &#x3D; 0L</span><br><span class="line">      val maxOutOfOrderness &#x3D; 10000L&#x2F;&#x2F;最大允许的乱序时间是10s</span><br><span class="line"></span><br><span class="line">      var a : Watermark &#x3D; null</span><br><span class="line"></span><br><span class="line">      val format &#x3D; new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss.SSS&quot;)</span><br><span class="line"></span><br><span class="line">      override def getCurrentWatermark: Watermark &#x3D; &#123;</span><br><span class="line">        a &#x3D; new Watermark(currentMaxTimestamp - maxOutOfOrderness)</span><br><span class="line">        a</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">      override def extractTimestamp(t: (String,Long), l: Long): Long &#x3D; &#123;</span><br><span class="line">        val timestamp &#x3D; t._2</span><br><span class="line">        currentMaxTimestamp &#x3D; Math.max(timestamp, currentMaxTimestamp)</span><br><span class="line">        println(&quot;timestamp:&quot; + t._1 +&quot;,&quot;+ t._2 + &quot;|&quot; +format.format(t._2) +&quot;,&quot;+  currentMaxTimestamp + &quot;|&quot;+ format.format(currentMaxTimestamp) + &quot;,&quot;+ a.toString)</span><br><span class="line">        timestamp</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;)</span><br><span class="line"></span><br><span class="line">    val window &#x3D; watermark</span><br><span class="line">    .keyBy(_._1)</span><br><span class="line">    .window(TumblingEventTimeWindows.of(Time.seconds(3)))</span><br><span class="line">    .apply(new WindowFunctionTest)</span><br><span class="line"></span><br><span class="line">    window.print()</span><br><span class="line"></span><br><span class="line">    env.execute()</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  class WindowFunctionTest extends WindowFunction[(String,Long),(String, Int,String,String,String,String),String,TimeWindow]&#123;</span><br><span class="line"></span><br><span class="line">    override def apply(key: String, window: TimeWindow, input: Iterable[(String, Long)], out: Collector[(String, Int,String,String,String,String)]): Unit &#x3D; &#123;</span><br><span class="line">      val list &#x3D; input.toList.sortBy(_._2)</span><br><span class="line">      val format &#x3D; new SimpleDateFormat(&quot;yyyy-MM-dd HH:mm:ss.SSS&quot;)</span><br><span class="line">      out.collect(key,input.size,format.format(list.head._2),format.format(list.last._2),format.format(window.getStart),format.format(window.getEnd))</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>4.3、程序详解</p>
+<p>（1）接收socket数据</p>
+<p>（2）将每行数据按照字符分隔，每行map成一个tuple类型（code，time）</p>
+<p>（3）抽取timestamp生成watermark。并打印（code，time，格式化的time，currentMaxTimestamp，currentMaxTimestamp的格式化时间，watermark时间）。</p>
+<p>（4）event time每隔3秒触发一次窗口，输出（code，窗口内元素个数，窗口内最早元素的时间，窗口内最晚元素的时间，窗口自身开始时间，窗口自身结束时间）</p>
+<p>注意：new AssignerWithPeriodicWatermarks[(String,Long)中有抽取timestamp和生成watermark2个方法，在执行时，它是先抽取timestamp，后生成watermark，因此我们在这里print的watermark时间，其实是上一条的watermark时间，我们到数据输出时再解释。<br><img src="/2018/08/25/Flinkwatermarks/w2.png" alt="avatar"></p>
+<p>生成的Job Graph</p>
+<h3 id="五、通过数据跟踪watermark的时间"><a href="#五、通过数据跟踪watermark的时间" class="headerlink" title="五、通过数据跟踪watermark的时间"></a>五、通过数据跟踪watermark的时间</h3><p>我们重点看看watermark与timestamp的时间，并通过数据来看看window的触发时机。</p>
+<p>首先，我们开启socket，输入第一条数据：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">000001,1461756862000</span><br></pre></td></tr></table></figure>
+
+<p>输出的out文件如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">timestamp:000001,1461756862000|2016-04-27 19:34:22.000,1461756862000|2016-04-27 19:34:22.000,Watermark @ -10000</span><br></pre></td></tr></table></figure>
+
+<p>这里，看下watermark的值，-10000，即0-10000得到的。这就说明程序先执行timestamp，后执行watermark。<br>所以，每条记录打印出的watermark，都应该是上一条的watermark。为了观察方便，我汇总了输出如下：<br><img src="/2018/08/25/Flinkwatermarks/w3.png" alt="avatar"></p>
+<p>此时，wartermark的时间按照逻辑，已经落后于currentMaxTimestamp10秒了。我们继续输入：<br><img src="/2018/08/25/Flinkwatermarks/w4.png" alt="avatar"></p>
+<p>此时，输出内容如下：<br><img src="/2018/08/25/Flinkwatermarks/w5.png" alt="avatar"></p>
+<p>我们再次汇总，见下表：<br><img src="/2018/08/25/Flinkwatermarks/w6.png" alt="avatar"></p>
+<p>我们继续输入，这时我们再次输入：<br><img src="/2018/08/25/Flinkwatermarks/w7.png" alt="avatar"></p>
+<p>输出如下：<br><img src="/2018/08/25/Flinkwatermarks/w8.png" alt="avatar"></p>
+<p>汇总如下：<br><img src="/2018/08/25/Flinkwatermarks/w9.png" alt="avatar"></p>
+<p>到这里，window仍然没有被触发，此时watermark的时间已经等于了第一条数据的Event Time了。那么window到底什么时候被触发呢？我们再次输入：<br><img src="/2018/08/25/Flinkwatermarks/w10.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w11.png" alt="avatar"></p>
+<p>汇总：<br><img src="/2018/08/25/Flinkwatermarks/w12.png" alt="avatar"></p>
+<p>OK，window仍然没有触发，此时，我们的数据已经发到2016-04-27 19:34:33.000了，最早的数据已经过去了11秒了，还没有开始计算。那是不是要等到13（10+3）秒过去了，才开始触发window呢？答案是否定的。</p>
+<p>我们再次增加1秒，输入：<br><img src="/2018/08/25/Flinkwatermarks/w13.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w14.png" alt="avatar"></p>
+<p>汇总：<br><img src="/2018/08/25/Flinkwatermarks/w15.png" alt="avatar"></p>
+<p>到这里，我们做一个说明：</p>
+<p>window的触发机制，是先按照自然时间将window划分，如果window大小是3秒，那么1分钟内会把window划分为如下的形式:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[00:00:00,00:00:03)[00:00:03,00:00:06)...[00:00:57,00:01:00)</span><br></pre></td></tr></table></figure>
+
+
+<p>如果window大小是10秒，则window会被分为如下的形式：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[00:00:00,00:00:10)[00:00:10,00:00:20)...[00:00:50,00:01:00)</span><br></pre></td></tr></table></figure>
+
+<p>window的设定无关数据本身，而是系统定义好了的。</p>
+<p>输入的数据中，根据自身的Event Time，将数据划分到不同的window中，如果window中有数据，则当watermark时间&gt;=Event Time时，就符合了window触发的条件了，最终决定window触发，还是由数据本身的Event Time所属的window中的window_end_time决定。</p>
+<p>上面的测试中，最后一条数据到达后，其水位线已经升至19:34:24秒，正好是最早的一条记录所在window的window_end_time，所以window就被触发了。</p>
+<p>为了验证window的触发机制，我们继续输入数据：<br><img src="/2018/08/25/Flinkwatermarks/w16.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w17.png" alt="avatar"></p>
+<p>汇总：<br><img src="/2018/08/25/Flinkwatermarks/w18.png" alt="avatar"></p>
+<p>此时，watermark时间虽然已经达到了第二条数据的时间，但是由于其没有达到第二条数据所在window的结束时间，所以window并没有被触发。那么，第二条数据所在的window时间是：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[19:34:24,19:34:27)</span><br></pre></td></tr></table></figure>
+
+
+<p>也就是说，我们必须输入一个19:34:27秒的数据，第二条数据所在的window才会被触发。我们继续输入：<br><img src="/2018/08/25/Flinkwatermarks/w19.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w20.png" alt="avatar"></p>
+<p>汇总：<br><img src="/2018/08/25/Flinkwatermarks/w21.png" alt="avatar"></p>
+<p>此时，我们已经看到，window的触发要符合以下几个条件：</p>
+<p>1、watermark时间 &gt;= window_end_time2、在[window_start_time,window_end_time)中有数据存在<br>1<br>2<br>同时满足了以上2个条件，window才会触发。</p>
+<p>而且，这里要强调一点，watermark是一个全局的值，不是某一个key下的值，所以即使不是同一个key的数据，其warmark也会增加，例如：</p>
+<p>输入：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">000002,1461756879000</span><br></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">timestamp:000002,1461756879000|2016-04-27 19:34:39.000,1461756879000|2016-04-27 19:34:39.000,Watermark @ 1461756867000</span><br></pre></td></tr></table></figure>
+
+
+<p>我们看到，currentMaxTimestamp也增加了。</p>
+<h3 id="六、watermark-window处理乱序"><a href="#六、watermark-window处理乱序" class="headerlink" title="六、watermark+window处理乱序"></a>六、watermark+window处理乱序</h3><p>我们上面的测试，数据都是按照时间顺序递增的，现在，我们输入一些乱序的（late）数据，看看watermark结合window机制，是如何处理乱序的。</p>
+<p>输入：<br><img src="/2018/08/25/Flinkwatermarks/w22.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w23.png" alt="avatar"></p>
+<p>汇总：<br><img src="/2018/08/25/Flinkwatermarks/w24.png" alt="avatar"></p>
+<p>可以看到，虽然我们输入了一个19:34:31的数据，但是currentMaxTimestamp和watermark都没变。此时，按照我们上面提到的公式：</p>
+<p>1、watermark时间 &gt;= window_end_time2、在[window_start_time,window_end_time)中有数据存在</p>
+<p>watermark时间（19:34:29） &lt; window_end_time（19:34:33），因此不能触发window。</p>
+<p>那如果我们再次输入一条19:34:43的数据，此时watermark时间会升高到19:34:33，这时的window一定就会触发了，我们试一试：</p>
+<p>输入：<br><img src="/2018/08/25/Flinkwatermarks/w25.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w26.png" alt="avatar"></p>
+<p>这里，我么看到，窗口中有2个数据，19:34:31和19:34:32的，但是没有19:34:33的数据，原因是窗口是一个前闭后开的区间，19:34:33的数据是属于[19:34:33,19:34:36)的窗口的。</p>
+<p>上边的结果，已经表明，对于out-of-order的数据，Flink可以通过watermark机制结合window的操作，来处理一定范围内的乱序数据。那么对于“迟到”太多的数据，Flink是怎么处理的呢？</p>
+<h3 id="七、late-element的处理"><a href="#七、late-element的处理" class="headerlink" title="七、late element的处理"></a>七、late element的处理</h3><p>我们输入一个乱序很多的（其实只要Event Time &lt; watermark时间）数据来测试下：</p>
+<p>输入：<br><img src="/2018/08/25/Flinkwatermarks/w27.png" alt="avatar"></p>
+<p>输出：<br><img src="/2018/08/25/Flinkwatermarks/w28.png" alt="avatar"></p>
+<p>我们看到，我们输入的数据是19:34:32的，而当前watermark时间已经来到了19:34:33，Event Time &lt; watermark时间，所以来一条就触发一个window。</p>
+<h3 id="八、总结"><a href="#八、总结" class="headerlink" title="八、总结"></a>八、总结</h3><p>8.1、Flink如何处理乱序？</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">watermark+window机制</span><br></pre></td></tr></table></figure>
+
+<p>window中可以对input进行按照Event Time排序，使得完全按照Event Time发生的顺序去处理数据，以达到处理乱序数据的目的。</p>
+<p>8.2、Flink何时触发window？</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">1、Event Time &lt; watermark时间（对于late element太多的数据而言）</span><br></pre></td></tr></table></figure>
+
+<p>或者</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">1. watermark时间 &gt;&#x3D; window_end_time（对于out-of-order以及正常的数据而言）</span><br><span class="line">2. 在[window_start_time,window_end_time)中有数据存在</span><br></pre></td></tr></table></figure>
+
+<p>8.3、Flink应该如何设置最大乱序时间？</p>
+<p>这个要结合自己的业务以及数据情况去设置。如果maxOutOfOrderness设置的太小，而自身数据发送时由于网络等原因导致乱序或者late太多，那么最终的结果就是会有很多单条的数据在window中被触发，数据的正确性影响太大。</p>
+<p>最后，我们通过一张图来看看watermark、Event Time和window的关系：<br><img src="/2018/08/25/Flinkwatermarks/w29.png" alt="avatar"></p>
+<p>文章转自：<a href="https://blog.csdn.net/lmalds/article/details/52704170" target="_blank" rel="noopener">https://blog.csdn.net/lmalds/article/details/52704170</a></p>
+
+      
+      <!-- reward -->
+      
+      <div id="reward-btn">
+        打赏
+      </div>
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2018/08/25/Flinkwatermarks/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2018/10/23/flinkhbase01/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            flink 对接 HBase 开发
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2018/07/18/YARN%E7%9A%84%E6%9E%B6%E6%9E%84%E5%8F%8A%E6%8F%90%E4%BA%A4%E6%B5%81%E7%A8%8B/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">YARN 的架构及提交流程</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        tedwang0714
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags">标签</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+      <a class="nav-item-link" target="_blank" href="/atom.xml" title="RSS Feed">
+        <i class="ri-rss-line"></i>
+      </a>
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script>
+  try {
+    var typed = new Typed("#subtitle", {
+    strings: ['人类精神必须置于技术之上','',''],
+    startDelay: 0,
+    typeSpeed: 200,
+    loop: true,
+    backSpeed: 100,
+    showCursor: true
+    });
+  } catch (err) {
+  }
+  
+</script>
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>

@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="大数据学习" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    Spark Core 第一课 |  TedWang 的大数据
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-SparkCore 01" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  Spark Core 第一课
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2017/03/05/SparkCore%2001/" class="article-date">
+  <time datetime="2017-03-05T12:43:27.000Z" itemprop="datePublished">2017-03-05</time>
+</a>
+      
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">1.5k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">7分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="Spark-Core01"><a href="#Spark-Core01" class="headerlink" title="Spark Core01"></a>Spark Core01</h1><p>学习目标：</p>
+<ol>
+<li>RDD 5大特性</li>
+<li>SparkCore 的编程规范</li>
+<li>RDD 创建方式</li>
+<li>RDD 的算子</li>
+</ol>
+<p>一. RDD 的5 大特性</p>
+<ul>
+<li><ol>
+<li>RDD 是 一系列的 partition ： A list of partition<br>比如一个数据 val data = Array(1,2,3,4,5,6,7,8,9)<br>会把数据分成一个一个的partition，比如<br>(1,2,3) , (4,5,6), (7,8,9)</li>
+</ol>
+</li>
+<li><ol start="2">
+<li>函数(方法) 是作用在每一个 partition 上的: A function for computing each split<br>比如 data.map(_ * 2)  表示 对 每个分区的 元素 * 2</li>
+</ol>
+</li>
+<li><ol start="3">
+<li>RDD 之间存在依赖关系：A list of dependency on other RDDS<br>这种依赖指的是 某个RDD 是由另外的RDD 计算推导出来的<br>比如 data.map(_ * 10 )  ==&gt;  data2<br>那么 data2中的 rdd就是由 data 每个元素 * 10 得到的</li>
+</ol>
+</li>
+<li><ol start="4">
+<li>对于K,V 结构的RDD，可以进行 partitioner，即把具有相同特征的RDD分到一组</li>
+</ol>
+</li>
+<li><ol start="5">
+<li>把计算拉到数据节点</li>
+</ol>
+</li>
+</ul>
+<p>二. SparKCore 的编程规范</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">val conf &#x3D; new SparkConf()</span><br><span class="line">  .setMaster(&quot;local[2]&quot;)  传入 master 的类型，一般测试传入 local[2] 即可 </span><br><span class="line">  .setAppName(this.getClass.getSimpleName)  app的名称</span><br><span class="line"></span><br><span class="line">val sc &#x3D; new SparkContext(conf)</span><br></pre></td></tr></table></figure>
+
+
+<p>如果不传入这两个会报错误，在源码中的体现：<br><img src="/2017/03/05/SparkCore%2001/HEXO/tedatablog/source/pictures/sparkcore01.png" alt="avatar"></p>
+<p>三.  RDD 的创建方式</p>
+<p>rdd创建方式一:  通过生成数据转换创建</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd1 &#x3D; sc.parallelize(List(1,2,3,4,5))</span><br><span class="line">rdd1: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[6] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd1.map(_*2).collect</span><br><span class="line">res4: Array[Int] &#x3D; Array(2, 4, 6, 8, 10)</span><br></pre></td></tr></table></figure>
+
+
+<p>rdd创建方式二：通过读取文件创建</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.textFile(&quot;file:&#x2F;&#x2F;&#x2F;home&#x2F;bdp&#x2F;tmp&#x2F;wc.data&quot;)</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[String] &#x3D; file:&#x2F;&#x2F;&#x2F;home&#x2F;bdp&#x2F;tmp&#x2F;wc.data MapPartitionsRDD[5] at textFile at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.collect</span><br><span class="line">res3: Array[String] &#x3D; Array(boming,boming,boming, niuniu,niuniu, simao)</span><br></pre></td></tr></table></figure>
+
+
+<p>rdd 创建方式三:<br>通过其他的rdd创建</p>
+<p>四.  RDD 算子</p>
+<p>RDD 算子可以分为两种类型：transformation 和 action<br>transformation 指的是中间的转换过程，是没有真正执行的<br>action 是真正执行的</p>
+<p>transformation 算子</p>
+<p>一定要记得，现在的操作都是对RDD 进行的操作，一定要转换成RDD</p>
+<ol>
+<li>map：作用在rdd 的每个元素上做相同的操作</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">val rdd &#x3D; sc.parallelize(Array(1,2,3,4,5,6))</span><br><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;)</span><br><span class="line">res6: Array[Int] &#x3D; Array(2, 4, 6, 8, 10, 12)</span><br></pre></td></tr></table></figure>
+
+
+
+
+<ol start="2">
+<li>filter： 过滤出符合条件的元素</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;).filter(_ &gt; 6)</span><br><span class="line">res8: Array[Int] &#x3D; Array(8, 10, 12)</span><br><span class="line"></span><br><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;).filter(x &#x3D;&gt; &#123;x &gt; 6 &#125;)</span><br><span class="line">res9: Array[Int] &#x3D; Array(8, 10, 12)</span><br></pre></td></tr></table></figure>
+
+
+<ol start="3">
+<li>mapPartitions</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd.mapPartitions( par &#x3D;&gt; &#123;par.map(_*2)&#125;).collect</span><br><span class="line">res20: Array[Int] &#x3D; Array(2, 4, 6, 8, 10, 12)</span><br></pre></td></tr></table></figure>
+
+<p>这个 算子的作用, 比如 有 100个元素, 10个分区, 使用 map 要调用 100次, 使用 mapPartitions 只需10次<br>可以引申到 MySQL的connection, 使用 mapPartitions可以减少很多的连接</p>
+<ol start="4">
+<li>flatMap : map 之后把 元素拍扁</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">scala&gt;  val rdd2 &#x3D; sc.parallelize(Array(Array(1,2,3),Array(4,5,6),Array(7,8,9)))</span><br><span class="line">scala&gt; rdd2.flatMap(x &#x3D;&gt; x).collect</span><br><span class="line">res26: Array[Int] &#x3D; Array(1, 2, 3, 4, 5, 6, 7, 8, 9)</span><br></pre></td></tr></table></figure>
+
+
+
+
+<ol start="5">
+<li>mapPartitionWIthIndex</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">rdd1.mapPartitionsWithIndex((index, partition) &#x3D;&gt; &#123;</span><br><span class="line">  partition.map( x &#x3D;&gt; &#123;</span><br><span class="line">    println(s&quot;$&#123;index&#125;, $x&quot;)</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>把 partition 和 index 输出</p>
+<ol start="6">
+<li>mapValues<br>只对KV 结构的V做相同的操作</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.map((_,1)).mapValues(_*3).collect</span><br><span class="line">res4: Array[(String, Int)] &#x3D; Array((iphone11 7000 20,3), (hwpro30 5000 100,3), (xiaomi 3000 200,3), (sumsung 6000 1000,3))</span><br></pre></td></tr></table></figure>
+
+
+<ol start="7">
+<li>reduceByKey</li>
+</ol>
+<p>把相同的key的元素放在一块，再进行两两相邻的操作</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(List(1,2,1,2,3,6,3,1,5))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[11] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.map((_,1)).reduceByKey(_+_).collect</span><br><span class="line">res9: Array[(Int, Int)] &#x3D; Array((1,3), (6,1), (3,2), (5,1), (2,2))</span><br></pre></td></tr></table></figure>
+
+
+
+<ol start="8">
+<li>union<br>把相同类型的数据放在一起</li>
+</ol>
+<p>注意，rdd1 和 rdd2 如果类型不同，不能进行 union<br>比如 rdd1为 String，rdd2 为 Int，会报下面的错误</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.union(rdd2).collect</span><br><span class="line">&lt;console&gt;:28: error: type mismatch;</span><br><span class="line"> found   : org.apache.spark.rdd.RDD[Int]</span><br><span class="line"> required: org.apache.spark.rdd.RDD[String]</span><br><span class="line">       rdd1.union(rdd2).collect</span><br><span class="line"></span><br><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(Array(&quot;ok haixing&quot;))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[String] &#x3D; ParallelCollectionRDD[21] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd1.union(rdd2).collect</span><br><span class="line">res16: Array[String] &#x3D; Array(iphone11 7000 20, hwpro30 5000 100, xiaomi 3000 200, sumsung 6000 1000, ok haixing)</span><br></pre></td></tr></table></figure>
+
+
+<ol start="9">
+<li>distinct</li>
+</ol>
+<p>去除 rdd的重复的元素</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(List(1,2,1,2,3,6,3,1,5))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[23] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.distinct.collect</span><br><span class="line">res19: Array[Int] &#x3D; Array(1, 6, 3, 5, 2)</span><br></pre></td></tr></table></figure>
+
+
+<ol start="10">
+<li>groupByKey<br>把相同key的元素放到一组，得到的是 CompactBuffer 类型的value</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd2.map((_,1)).groupByKey().collect</span><br><span class="line">res27: Array[(Int, Iterable[Int])] &#x3D; Array((1,CompactBuffer(1, 1, 1)), (6,CompactBuffer(1)), (3,CompactBuffer(1, 1)), (5,CompactBuffer(1)), (2,CompactBuffer(1, 1)))</span><br></pre></td></tr></table></figure>
+
+
+<ol start="11">
+<li><p>groupBy<br>可以按照不同的分组条件进行分组<br>比如，对 value 进行分组<br>rdd.map((<em>,1)).groupBy(</em>._2).foreach(println)<br>输出：<br>因为value都是1，所以输出的就只有1组<br>(1,CompactBuffer((1,1), (2,1), (3,1), (4,1), (5,1), (6,1)))</p>
+</li>
+<li><p>join</p>
+</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">val rdd1 &#x3D; sc.textFile(&quot;data&#x2F;dept.txt&quot;）</span><br><span class="line">val rdd2 &#x3D; sc.textFile(&quot;data&#x2F;emp.txt&quot;)</span><br><span class="line"></span><br><span class="line">val deptRdd &#x3D; rdd1.map(x &#x3D;&gt; &#123;</span><br><span class="line">  val splits &#x3D; x.split(&quot;,&quot;)</span><br><span class="line">  (splits(0).trim, (splits(1).trim, splits(2).trim))</span><br><span class="line">&#125;)</span><br><span class="line">val empRdd &#x3D; rdd2.map(x &#x3D;&gt; &#123;</span><br><span class="line">  val splits &#x3D; x.split(&quot; &quot;)</span><br><span class="line">  (splits(4).trim, (splits(0).trim, splits(1).trim, splits(2).trim, splits(3).trim))</span><br><span class="line">&#125;)</span><br><span class="line">deptRdd.join(empRdd)</span><br><span class="line">deptRdd.leftOutJoin(empRdd)</span><br><span class="line">deptRdd.rightOutJoin(empRdd)</span><br><span class="line">deptRdd.fullOutJoin(empRdd)</span><br><span class="line">(20,(Some((RESEARCH,DALLAS)),Some((1002,bill,ceo,55))))</span><br><span class="line">(30,(Some((SALES,CHICAGO)),Some((1003,cindy,cw,32))))</span><br><span class="line">(40,(Some((OPERATIONS,BOSTON)),None))</span><br><span class="line">(10,(Some((ACCOUNTIN,NEW YORK)),Some((1001,bob,sales,30))))</span><br></pre></td></tr></table></figure>
+
+
+<ol start="13">
+<li>cogroup</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">deptRdd.cogroup(empRdd).foreach(println)</span><br><span class="line">输出：</span><br><span class="line">(20,(CompactBuffer((RESEARCH,DALLAS)),CompactBuffer((1002,bill,ceo,55))))</span><br><span class="line">(30,(CompactBuffer((SALES,CHICAGO)),CompactBuffer((1003,cindy,cw,32))))</span><br><span class="line">(40,(CompactBuffer((OPERATIONS,BOSTON)),CompactBuffer()))</span><br><span class="line">(10,(CompactBuffer((ACCOUNTIN,NEW YORK)),CompactBuffer((1001,bob,sales,30))))</span><br><span class="line"></span><br><span class="line">join 和 从group的关系</span><br><span class="line">join 底层调用 了 从group</span><br><span class="line">def join[W](other: RDD[(K, W)], partitioner: Partitioner): RDD[(K, (V, W))] &#x3D; 				  self.withScope &#123;</span><br><span class="line">  this.cogroup(other, partitioner).flatMapValues( pair &#x3D;&gt;</span><br><span class="line">    for (v &lt;- pair._1.iterator; w &lt;- pair._2.iterator) yield (v, w)</span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+<ol start="14">
+<li>zipWithIndex<br>相当于给每个元素加个索引，形成K,V 结构    </li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.zipWithIndex.collectAsMap</span><br><span class="line">res18: scala.collection.Map[Int,Long] &#x3D; Map(2 -&gt; 1, 5 -&gt; 4, 4 -&gt; 3, 1 -&gt; 0, 3 -&gt; 2, 6 -&gt; 5)</span><br></pre></td></tr></table></figure>
+
+      
+      <!-- reward -->
+      
+      <div id="reward-btn">
+        打赏
+      </div>
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2017/03/05/SparkCore%2001/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2017/03/07/SparkCore%2002/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            Spark Core 第二课
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">MySQL双击热备实现</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        tedwang0714
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags">标签</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+      <a class="nav-item-link" target="_blank" href="/atom.xml" title="RSS Feed">
+        <i class="ri-rss-line"></i>
+      </a>
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script>
+  try {
+    var typed = new Typed("#subtitle", {
+    strings: ['人类精神必须置于技术之上','',''],
+    startDelay: 0,
+    typeSpeed: 200,
+    loop: true,
+    backSpeed: 100,
+    showCursor: true
+    });
+  } catch (err) {
+  }
+  
+</script>
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>

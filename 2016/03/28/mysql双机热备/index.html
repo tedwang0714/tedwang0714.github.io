@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="大数据学习" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    MySQL双击热备实现 |  TedWang 的大数据
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/favicon.ico" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-mysql双机热备" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  MySQL双击热备实现
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/" class="article-date">
+  <time datetime="2016-03-28T12:43:27.000Z" itemprop="datePublished">2016-03-28</time>
+</a>
+      
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">1.1k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">4分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="mysql-双机热备"><a href="#mysql-双机热备" class="headerlink" title="mysql 双机热备"></a>mysql 双机热备</h1><h3 id="一-环境及注意事项"><a href="#一-环境及注意事项" class="headerlink" title="一. 环境及注意事项"></a>一. 环境及注意事项</h3><p>msyql双机热备即mysql 的 主主模式，即</p>
+<p>mysql的机器可以互相读写，保障了数据的同步</p>
+<p>下面是mysql 主主的实现过程:</p>
+<p>测试环境: CentOS 6.8</p>
+<p>主机 ip: 192.168.163.22;192.168.163.23</p>
+<p>配置注意项:</p>
+<ol>
+<li>两台主机的mysql 版本要一致</li>
+<li>两台mysql的初始状态要一致，即mysql库中的数据库要一致</li>
+<li>关闭防火墙</li>
+</ol>
+<h3 id="二-配置过程"><a href="#二-配置过程" class="headerlink" title="二. 配置过程"></a>二. 配置过程</h3><p>1.配置 msyql 配置文件:</p>
+<p>在 192.168.163.22 上的配置如下:</p>
+<p>vim /etc/my.cnf：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">log-bin&#x3D;mysql-bin  &#x2F;&#x2F;表示mysql的二进制日志，因为主主的实现是通过读取二进制日志的位置实现的</span><br><span class="line">binlog_format&#x3D;mixed &#x2F;&#x2F;二进制日志格式</span><br><span class="line">server-id&#x3D;22 &#x2F;&#x2F;server-id号，这个号码两台主机上一定不能一样,通常可取ip的最后一位</span><br><span class="line"></span><br><span class="line">read-only&#x3D;0 &#x2F;&#x2F;只读模式为False</span><br><span class="line">binlog-ignore-db&#x3D;mysql  </span><br><span class="line">binlog-ignore-db&#x3D;information_schema</span><br><span class="line">binlog-ignore-db&#x3D;performance_schema</span><br><span class="line">binlog-ignore-db&#x3D;sys  &#x2F;&#x2F; 这几段表示 忽略同步的数据库</span><br><span class="line"></span><br><span class="line">auto-increment-increment&#x3D;1</span><br><span class="line">auto-increment-offset&#x3D;1 &#x2F;&#x2F; 用于在 双主（多主循环）互相备份。 因为每台数据库服务器都可能在同一个表中插入数据，如果表有一个自动增长的主键，那么就会在多服务器上出现主键冲突。  解决这个问题的办法就是让每个数据库的自增主键不连续。  上图说是， 我假设需要将来可能需要10台服务器做备份， 所以auto-increment-increment 设为10.   而 auto-increment-offset&#x3D;1 表示这台服务器的序号。 从1开始， 不超过auto-increment-increment。</span><br><span class="line">这样做之后， 我在这台服务器上插入的第一个id就是 1， 第二行的id就是 11了， 而不是2</span><br><span class="line"></span><br><span class="line">replicate-ignore-db&#x3D;mysql</span><br><span class="line">replicate-ignore-db&#x3D;information_schema</span><br><span class="line">replicate-ignore-db&#x3D;performance_schema</span><br><span class="line">replicate-ignore-db&#x3D;sys &#x2F;&#x2F; 这几段表示 复制忽略的数据库</span><br><span class="line">relay_log&#x3D;mysqld-relay-bin &#x2F;&#x2F;中继日志</span><br><span class="line">log-slave-updates&#x3D;ON &#x2F;&#x2F;中继日志执行之后，这些变化是否需要计入自己的binarylog。 当你的B服务器需要作为另外一个服务器的主服务器的时候需要打开。  就是双主互相备份，或者多主循环备份。 我们这里需要， 所以打开。</span><br></pre></td></tr></table></figure>
+
+
+
+<p>在 192.168.163.23 上的配置如下:</p>
+<p>vim /etc/my.cnf:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">log-bin&#x3D;mysql-bin</span><br><span class="line">binlog_format&#x3D;mixed</span><br><span class="line">server-id&#x3D;23</span><br><span class="line"></span><br><span class="line">read-only&#x3D;0</span><br><span class="line">binlog-ignore-db&#x3D;mysql</span><br><span class="line">binlog-ignore-db&#x3D;information_schema</span><br><span class="line">binlog-ignore-db&#x3D;performance_schema</span><br><span class="line">binlog-ignore-db&#x3D;sys</span><br><span class="line">auto-increment-increment&#x3D;10</span><br><span class="line">auto-increment-offset&#x3D;2</span><br><span class="line"></span><br><span class="line">replicate-ignore-db&#x3D;mysql</span><br><span class="line">replicate-ignore-db&#x3D;information_schema</span><br><span class="line">replicate-ignore-db&#x3D;performance_schema</span><br><span class="line">replicate-ignore-db&#x3D;sys</span><br><span class="line">relay_log&#x3D;mysqld-relay-bin</span><br><span class="line">log-slave-updates&#x3D;ON</span><br></pre></td></tr></table></figure>
+
+
+<p>2.对两台主机进行授权:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">22上:</span><br><span class="line">GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.23&#39; identified by &#39;Bb123456@&#39;;</span><br><span class="line"></span><br><span class="line">23上:</span><br><span class="line">GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.22&#39; identified by &#39;Bb123456@&#39;;</span><br></pre></td></tr></table></figure>
+
+
+<p>该步骤的目的是让两台主机在连接时拥有权限，否则连接不被允许</p>
+<p>3.进行主从sql 设置:</p>
+<p>查看 两台主机的master 状态:</p>
+<p>22上:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls1.png" alt="avatar"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">在 22 上执行:</span><br><span class="line">change master to master_host&#x3D;&#39;192.168.163.23&#39;,master_user&#x3D;&#39;root&#39;,master_password&#x3D;&#39;Bb123456@&#39;,master_log_file&#x3D;&#39;mysql-bin.000003&#39;,master_log_pos&#x3D;2266;</span><br></pre></td></tr></table></figure>
+
+
+<p>23上:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls2.png" alt="avatar"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">在 23 上执行:</span><br><span class="line">change master to master_host&#x3D;&#39;192.168.163.23&#39;,master_user&#x3D;&#39;root&#39;,master_password&#x3D;&#39;Bb123456@&#39;,master_log_file&#x3D;&#39;mysql-bin.000007&#39;,master_log_pos&#x3D;503;</span><br></pre></td></tr></table></figure>
+
+
+<p>该操作就让mysql的两台主机 从该二级制日志的位置开始同步</p>
+<p>4.开启并查看同步状态:</p>
+<p>两台主机上都执行以下操作:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">start slave;</span><br></pre></td></tr></table></figure>
+<p><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls3.png" alt="avatar"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">show slave status\G;</span><br></pre></td></tr></table></figure>
+<p><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls4.png" alt="avatar"></p>
+<p>—两台主机上只用 这两个为 Yes是才表示同步成功</p>
+<p>5.测试同步</p>
+<p>首先查看两台主机数据库的初始状态:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls5.png" alt="avatar"></p>
+<p>然后在 22上删除 数据库 bigeye_dev<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls6.png" alt="avatar"></p>
+<p>可以看到，从库中的bigeye_dev也删除了</p>
+<p>最后到 23 上创建数据库 bigeye_dev<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls7.png" alt="avatar"></p>
+<p>可以看到，bigeye_dev 也被创建了</p>
+<p>报错:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Error: &#39;Lost connection to MySQL server at &#39;reading initial communication packet&#39;, system error: 113&#39; errno: 2013 retry-time: 60 retries: 86400</span><br></pre></td></tr></table></figure>
+
+
+<p>原因:没有授权，导致连接时不被允许</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">解决:GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.22&#39; identified by &#39;Bb123456@&#39;;</span><br></pre></td></tr></table></figure>
+
+
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">报错:Fatal error: The slave I&#x2F;O thread stops because master and slave have equal MySQL server UUIDs; these UUIDs must be different for replication to work.</span><br></pre></td></tr></table></figure>
+
+
+<p>原因:UUID冲突</p>
+<p>解决:vi /var/lib/mysql/auto.cnf<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls8.png" alt="avatar"></p>
+<p>这两个uuid改成不一致即可</p>
+
+      
+      <!-- reward -->
+      
+      <div id="reward-btn">
+        打赏
+      </div>
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2017/03/05/SparkCore%2001/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            Spark Core 第一课
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2015/04/23/shell%E4%B8%89%E5%89%91%E5%AE%A2/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">shell 使用</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        tedwang0714
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags">标签</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+      <a class="nav-item-link" target="_blank" href="/atom.xml" title="RSS Feed">
+        <i class="ri-rss-line"></i>
+      </a>
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script>
+  try {
+    var typed = new Typed("#subtitle", {
+    strings: ['人类精神必须置于技术之上','',''],
+    startDelay: 0,
+    typeSpeed: 200,
+    loop: true,
+    backSpeed: 100,
+    showCursor: true
+    });
+  } catch (err) {
+  }
+  
+</script>
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>

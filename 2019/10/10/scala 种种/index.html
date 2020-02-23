@@ -8,11 +8,11 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>
-    Scala 种种 |  TedWang 的大数据
+    true |  TedWang 的大数据
   </title>
   <meta name="generator" content="hexo-theme-yilia-plus">
   
-  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="shortcut icon" href="/images/xingji.png" />
   
   
 <link rel="stylesheet" href="/css/style.css">
@@ -54,6 +54,10 @@
   <time datetime="2019-10-10T04:00:00.000Z" itemprop="datePublished">2019-10-10</time>
 </a>
       
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/scala/">scala</a>
+  </div>
+
       
       
 <div class="word_count">
@@ -105,6 +109,8 @@
 <p>scala 类边界</p>
 <p>一.  scala 隐式转换</p>
 <p>隐式实例一<br>def main(args: Array[String]): Unit = {<br>    implicit def shop2supermarket(shop: Shop) = new Supermarket(“foods”)<br>    val shop = new Shop()<br>    shop.restrant()<br>  }<br>}<br>class Shop()<br>class Supermarket(goods: String) {<br>  def restrant(): Unit = {<br>    println(s”supermarket has restrant…, so many $goods”)<br>  }<br>}<br>该隐式转换实现了 把 shop 类拥有了 supermarket 类的变量 和 方法</p>
+<a id="more"></a>
+
 <p>隐式转换的套路是：</p>
 <p>implicit def 普通类2牛逼类(普通类变量：普通类) = new 牛逼类(参数)</p>
 <p>隐式实例二<br> def main(args: Array[String]): Unit = {<br>    implicit def file2richfile(file: File): RichFile0211 = new RichFile0211(file)<br>    val file = new File(“D:\Program Files (x86)\IdeaProject\tedata-spark\data\emp.txt”)<br>    val data = file.read()<br>    println(data)<br>  }<br>}</p>
@@ -235,7 +241,7 @@ val className = classes(Random.nextInt(classes.length))</code></pre><p>//    val
 <div id="share-mask"></div>
       
       
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/scala/" rel="tag">scala</a></li></ul>
 
 
     </footer>
@@ -245,6 +251,15 @@ val className = classes(Random.nextInt(classes.length))</code></pre><p>//    val
   
   
   <nav class="article-nav">
+    
+      <a href="/2020/02/21/flinkhbase01/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            flinkhbase01
+          
+        </div>
+      </a>
     
     
       <a href="/2019/04/25/sqoop01/" class="article-nav-link">
@@ -364,13 +379,13 @@ val className = classes(Random.nextInt(classes.length))</code></pre><p>//    val
 <nav class="navbar">
   
   <div class="logo">
-    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+    <a href="/"><img src="/images/xingji.png" alt="TedWang 的大数据"></a>
   </div>
   
   <ul class="nav nav-main">
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/">主页</a>
+      <a class="nav-item-link" href="/index.html">主页</a>
     </li>
     
     <li class="nav-item">
@@ -382,7 +397,7 @@ val className = classes(Random.nextInt(classes.length))</code></pre><p>//    val
     </li>
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/tags">标签</a>
+      <a class="nav-item-link" href="/tags/">标签</a>
     </li>
     
   </ul>

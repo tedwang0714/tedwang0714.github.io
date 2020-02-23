@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="大数据学习" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    Hive SQL 记录1 |  TedWang 的大数据
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/images/xingji.png" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-HiveSQL1" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  Hive SQL 记录1
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2017/03/25/HiveSQL1/" class="article-date">
+  <time datetime="2017-03-25T12:43:27.000Z" itemprop="datePublished">2017-03-25</time>
+</a>
+      
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">1.4k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">6分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="Hive-SQL-记录"><a href="#Hive-SQL-记录" class="headerlink" title="Hive SQL 记录"></a>Hive SQL 记录</h1><h3 id="案例一"><a href="#案例一" class="headerlink" title="案例一"></a>案例一</h3><p>表中有如下字段：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">domain           time     traffic(T)</span><br><span class="line">gifshow.com   2019&#x2F;01&#x2F;01    5</span><br><span class="line">yy.com        2019&#x2F;01&#x2F;01    4</span><br><span class="line">huya.com      2019&#x2F;01&#x2F;01    1</span><br><span class="line">gifshow.com   2019&#x2F;01&#x2F;20    6</span><br><span class="line">gifshow.com   2019&#x2F;02&#x2F;01    8</span><br><span class="line">yy.com        2019&#x2F;01&#x2F;20    5</span><br><span class="line">gifshow.com   2019&#x2F;02&#x2F;02    7</span><br></pre></td></tr></table></figure>
+
+<p>需求是按月统计每个用户的累计访问量(只能用一个 SQL)，结果如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">domain          month     traffics   totals</span><br><span class="line">gifshow.com     2019-01      11         11</span><br><span class="line">gifshow.com     2019-02      15         26</span><br><span class="line">yy.com          2019-01       9         9</span><br><span class="line">huya.com        2019-01       1         1</span><br></pre></td></tr></table></figure>
+
+<p>需求分析：</p>
+<p>每个用户每月的访问量：group by 用户，月；然后再 sum<br>相同每月数据累加：<br>第一步的按月和用户统计：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select domain,substr(time,1,7) ,sum(traffic) from domain_traffic group by domain,substr(time,1,7);</span><br></pre></td></tr></table></figure>
+
+
+<p>结果输出如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">gifshow.com     2019&#x2F;01 11</span><br><span class="line">gifshow.com     2019&#x2F;02 15</span><br><span class="line">huya.com        2019&#x2F;01 1</span><br><span class="line">yy.com  2019&#x2F;01 9</span><br></pre></td></tr></table></figure>
+
+<p>第二步，相同用户每月累加</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">select ms.domain,ms.m,ms.s,sum(ms.s)over(partition by ms.domain order by ms.m) from </span><br><span class="line">(select domain,substr(time,1,7) m ,sum(traffic) s from domain_traffic group by domain,substr(time,1,7)) ms;</span><br><span class="line">使用 sum()over() 函数实现累加功能，over 实现分组排序，sum 实现就有点意思：将本组内当前行以及之前的行全部相加(01之前没有最终只有01，02之前是01最终是01+02)。</span><br></pre></td></tr></table></figure>
+
+
+<h3 id="案例二："><a href="#案例二：" class="headerlink" title="案例二："></a>案例二：</h3><p>表数据如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">uid		pid</span><br><span class="line">li  	a</span><br><span class="line">zhang   b</span><br><span class="line">li  	a</span><br><span class="line">zhang   a</span><br><span class="line">wang    a</span><br><span class="line">john    a</span><br><span class="line">zhang   a</span><br><span class="line">wang    a</span><br><span class="line">tom 	b</span><br><span class="line">ao  	b</span><br><span class="line">wang    b</span><br><span class="line">tom 	b</span><br><span class="line">wang    b</span><br><span class="line">wang    b</span><br><span class="line">wang    b</span><br><span class="line">zhang   b</span><br><span class="line">zhang   b</span><br><span class="line">ao  	a</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>统计产品 UV</li>
+<li>统计每个产品 top3 用户</li>
+</ol>
+<p>UV：按产品分组，count (uid 排重 )</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select pid,count(distinct uid) from uid_pid group by pid;</span><br></pre></td></tr></table></figure>
+
+<p>结果：</p>
+<p>a       5<br>b       4<br>top3：</p>
+<p>按产品、用户分组，count(1) 排序，limit 取 top (整体取 top)<br>select uid,pid,count(1) m from uid_pid group by uid,pid order by m desc limit 3</p>
+<p>产品 top ：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select t.uid,t.pid,t.m from (select s.uid,s.pid,s.m,row_number()over(partition by pid order by s.m desc) as rank from (select uid,pid,count(1) m from uid_pid group by uid,pid) s ) t where t.rank &lt;&#x3D; 3;</span><br></pre></td></tr></table></figure>
+
+
+<p>输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">zhang   a       2</span><br><span class="line">wang    a       2</span><br><span class="line">li      a       2</span><br><span class="line">wang    b       4</span><br><span class="line">zhang   b       3</span><br><span class="line">tom     b       2</span><br></pre></td></tr></table></figure>
+
+<p>使用 row_number()over 函数实现分组 Top。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">row_number()over() 作用就是分组排序并加上序号标记：over 中按 pid 分组，并按 次数 m 降序排列，row_numbe()</span><br></pre></td></tr></table></figure>
+<p> 记录排序相当于增加了一列序号 rank。</p>
+<p>总结<br>以上两个案例都用到 over 这个函数，我们从 MR 角度来讲解 over 作用。</p>
+<h3 id="行列转换"><a href="#行列转换" class="headerlink" title="行列转换"></a>行列转换</h3><h3 id="行转列"><a href="#行转列" class="headerlink" title="行转列"></a>行转列</h3><p>将多行数据合并成某列</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_id</span><br><span class="line">104399	2105395</span><br><span class="line">104399	1715131</span><br><span class="line">104400	1609001</span><br><span class="line">104400	2986088</span><br><span class="line">104400	1795054</span><br><span class="line">select user_id,concat_ws(&#39;,&#39;,collect_set(order_id)) as order_value</span><br><span class="line">from table</span><br><span class="line">group by user_id ;</span><br></pre></td></tr></table></figure>
+
+<p>结果输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_value</span><br><span class="line">104399	2105395,1715131</span><br><span class="line">104400	1609001,2986088,1795054</span><br></pre></td></tr></table></figure>
+
+<p>按 user_id 分组后，每个user_id 都对应多个order_id；接着 collect_set 收集多个 order_id 并去重；最后由 concat_ws 指定分隔符将数组中的 order_id 合并成一个字符串</p>
+<p>collect_list 不去重，collect_set 去重，但类型要求是 string</p>
+<p>将多行数据转成多列</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">name	subject	score</span><br><span class="line">张三	语文	80</span><br><span class="line">张三	数学	90</span><br><span class="line">张三	英语	60</span><br></pre></td></tr></table></figure>
+
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">select name,</span><br><span class="line">	max(case when subject &#x3D;&#39;语文&#39; then score else 0 end) as Chinese,</span><br><span class="line">	max(case when subject &#x3D;&#39;数学&#39; then score else 0 end) as Math,</span><br><span class="line">	max(case when subject &#x3D;&#39;英语&#39; then score else 0 end) as English</span><br><span class="line">from table</span><br><span class="line">group by name</span><br></pre></td></tr></table></figure>
+
+<p>name    Chinese    Math    English<br>张三    80    90    60</p>
+<h3 id="列转行"><a href="#列转行" class="headerlink" title="列转行"></a>列转行</h3><p>将某列数据扩展成多行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_value</span><br><span class="line">104399	2105395,1715131</span><br><span class="line">104400	1609001,2986088,1795054</span><br><span class="line">select user_id,order_id</span><br><span class="line">from table</span><br><span class="line">lateral view explode(split(order_value,&#39;,&#39;)) t as order_id;</span><br></pre></td></tr></table></figure>
+
+<p>结果输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_id</span><br><span class="line">104399	2105395</span><br><span class="line">104399	1715131</span><br><span class="line">104400	1609001</span><br><span class="line">104400	2986088</span><br><span class="line">104400	1795054</span><br><span class="line">lateral view explode(数组)</span><br></pre></td></tr></table></figure>
+<p> 将数组中每个值都扩展成一行中列值。上面例子中，由 split 将 order_value 变成一个 order 数组，然后再由 explode 扩展成列。</p>
+<p>将多列数据转成多行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">name	Chinese	Math	English</span><br><span class="line">张三	80	90	60</span><br><span class="line"> select a.name,b.label,b.value</span><br><span class="line"> from (select * from table )a</span><br><span class="line">    lateral view explode(map(</span><br><span class="line">        &#39;语文&#39;,Chinese,</span><br><span class="line">        &#39;数学&#39;,Math,</span><br><span class="line">        &#39;英语&#39;,English</span><br><span class="line">    )) b as label ,value</span><br><span class="line">name	subject	score</span><br><span class="line">张三	语文	80</span><br><span class="line">张三	数学	90</span><br><span class="line">张三	英语	60</span><br></pre></td></tr></table></figure>
+
+<p>留存<br>用户留存率一般是面向新增用户的概念，指某一天注册后的几天还是否活跃,是以每天为单位进行计算的。一般收到的需求都是一个时间段内的新增用户的几天留存。</p>
+<p>根据留存的定义可知，我们需要求两个数<br>：新增和某日留存数，两者相除可得留存率。新增数很简单一般都会有标识，留存数需要有条件限定：假设求2018-05-18日的3日留存，先获取2018-05-18的新增 user_ids，然后判断当前活跃用户的 id 是否包含在 user_ids 且 ( 当前活跃的日期 - 2018-05-18 ) = 2。</p>
+<p>/<em>计算某日新增登录设备的次日、3日、7日、14日、30日、90日留存率</em>/</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">SELECT</span><br><span class="line">	log_day &#39;日期&#39;,</span><br><span class="line">	count(user_id_d0) &#39;新增数量&#39;,</span><br><span class="line">	count(user_id_d1) &#x2F; count(user_id_d0) &#39;次日留存&#39;,</span><br><span class="line">	count(user_id_d3) &#x2F; count(user_id_d0) &#39;3日留存&#39;,</span><br><span class="line">	count(user_id_d7) &#x2F; count(user_id_d0) &#39;7日留存&#39;,</span><br><span class="line">	count(user_id_d14) &#x2F; count(user_id_d0) &#39;14日留存&#39;,</span><br><span class="line">	count(user_id_d30) &#x2F; count(user_id_d0) &#39;30日留存&#39;,</span><br><span class="line">	count(user_id_d90) &#x2F; count(user_id_d0) &#39;90日留存&#39;</span><br><span class="line">FROM</span><br><span class="line">	(</span><br><span class="line">		SELECT DISTINCT</span><br><span class="line">			log_day,</span><br><span class="line">			a.user_id_d0,</span><br><span class="line">			b.device_id AS user_id_d1,</span><br><span class="line">			c.device_id AS user_id_d3,</span><br><span class="line">			d.device_id AS user_id_d7,</span><br><span class="line">			e.device_id AS user_id_d14,</span><br><span class="line">			f.device_id AS user_id_d30,</span><br><span class="line">			g.device_id AS user_id_d90</span><br><span class="line">		FROM</span><br><span class="line">			(</span><br><span class="line">				SELECT DISTINCT</span><br><span class="line">					Date(event_time) AS log_day,</span><br><span class="line">					device_id AS user_id_d0</span><br><span class="line">				FROM</span><br><span class="line">					role_login_back</span><br><span class="line">				GROUP BY</span><br><span class="line">					device_id</span><br><span class="line">				ORDER BY</span><br><span class="line">					log_day</span><br><span class="line">			) a</span><br><span class="line">		LEFT JOIN role_login_back b ON DATEDIFF(DATE(b.event_time),a.log_day) &#x3D; 1</span><br><span class="line">		AND a.user_id_d0 &#x3D; b.device_id</span><br><span class="line">		LEFT JOIN role_login_back c ON DATEDIFF(DATE(c.event_time),a.log_day) &#x3D; 2</span><br><span class="line">		AND a.user_id_d0 &#x3D; c.device_id</span><br><span class="line">		LEFT JOIN role_login_back d ON DATEDIFF(DATE(d.event_time),a.log_day) &#x3D; 6</span><br><span class="line">		AND a.user_id_d0 &#x3D; d.device_id</span><br><span class="line">		LEFT JOIN role_login_back e ON DATEDIFF(DATE(e.event_time),a.log_day) &#x3D; 13</span><br><span class="line">		AND a.user_id_d0 &#x3D; e.device_id</span><br><span class="line">		LEFT JOIN role_login_back f ON DATEDIFF(DATE(f.event_time),a.log_day) &#x3D; 29</span><br><span class="line">		AND a.user_id_d0 &#x3D; f.device_id</span><br><span class="line">		LEFT JOIN role_login_back g ON DATEDIFF(DATE(g.event_time),a.log_day) &#x3D; 89</span><br><span class="line">		AND a.user_id_d0 &#x3D; g.device_id</span><br><span class="line">	) AS temp</span><br><span class="line">GROUP BY</span><br><span class="line">log_day</span><br></pre></td></tr></table></figure>
+
+      
+      <!-- reward -->
+      
+      <div id="reward-btn">
+        打赏
+      </div>
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2017/03/25/HiveSQL1/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2017/04/10/SparkSQL01/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            Spark SQL 第一课
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2017/03/12/hadooplzo/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">Hadoop 支持 lzo压缩算法</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        tedwang0714
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/xingji.png" alt="TedWang 的大数据"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/index.html">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags/">标签</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+      <a class="nav-item-link" target="_blank" href="/atom.xml" title="RSS Feed">
+        <i class="ri-rss-line"></i>
+      </a>
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script>
+  try {
+    var typed = new Typed("#subtitle", {
+    strings: ['人类精神必须置于技术之上','',''],
+    startDelay: 0,
+    typeSpeed: 200,
+    loop: true,
+    backSpeed: 100,
+    showCursor: true
+    });
+  } catch (err) {
+  }
+  
+</script>
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>

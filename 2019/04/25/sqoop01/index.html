@@ -12,7 +12,7 @@
   </title>
   <meta name="generator" content="hexo-theme-yilia-plus">
   
-  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="shortcut icon" href="/images/xingji.png" />
   
   
 <link rel="stylesheet" href="/css/style.css">
@@ -106,6 +106,8 @@
 
 
 <p>执行之后报错:</p>
+<a id="more"></a>
+
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">16&#x2F;12&#x2F;16 22:21:09 WARN spi.Registration: Not loading URI patterns in org.kitesdk.data.spi.hive.Loader</span><br><span class="line">16&#x2F;12&#x2F;16 22:21:09 ERROR sqoop.Sqoop: Got exception running Sqoop: org.kitesdk.data.DatasetNotFoundException: Descriptor location does not exist:     hdfs:&#x2F;&#x2F;nameservice1&#x2F;bdp&#x2F;STORAGE_ID&#x2F;.metadata</span><br><span class="line">org.kitesdk.data.DatasetNotFoundException: Descriptor location does not exist: hdfs:&#x2F;&#x2F;nameservice1&#x2F;bdp&#x2F;STORAGE_ID&#x2F;.metadata</span><br><span class="line">    at org.kitesdk.data.spi.filesystem.FileSystemMetadataProvider.checkExists(FileSystemMetadataProvider.java:562)</span><br><span class="line">    at org.kitesdk.data.spi.filesystem.FileSystemMetadataProvider.find(FileSystemMetadataProvider.java:605)</span><br><span class="line">    at org.kitesdk.data.spi.filesystem.FileSystemMetadataProvider.load(FileSystemMetadataProvider.java:114)</span><br><span class="line">    at org.kitesdk.data.spi.filesystem.FileSystemDatasetRepository.load(FileSystemDatasetRepository.java:197)</span><br><span class="line">    at org.kitesdk.data.Datasets.load(Datasets.java:108)</span><br><span class="line">    at org.kitesdk.data.Datasets.load(Datasets.java:140)</span><br><span class="line">    at org.kitesdk.data.mapreduce.DatasetKeyInputFormat$ConfigBuilder.readFrom(DatasetKeyInputFormat.java:92)</span><br><span class="line">    at org.kitesdk.data.mapreduce.DatasetKeyInputFormat$ConfigBuilder.readFrom(DatasetKeyInputFormat.java:139)</span><br><span class="line">    at org.apache.sqoop.mapreduce.JdbcUpdateExportJob.configureInputFormat(JdbcUpdateExportJob.java:192)</span><br><span class="line">    at org.apache.sqoop.mapreduce.ExportJobBase.runExport(ExportJobBase.java:432)</span><br><span class="line">    at org.apache.sqoop.manager.MySQLManager.upsertTable(MySQLManager.java:145)</span><br><span class="line">    at org.apache.sqoop.tool.ExportTool.exportTable(ExportTool.java:74)</span><br><span class="line">    at org.apache.sqoop.tool.ExportTool.run(ExportTool.java:100)</span><br><span class="line">    at org.apache.sqoop.Sqoop.run(Sqoop.java:143)</span><br><span class="line">    at org.apache.hadoop.util.ToolRunner.run(ToolRunner.java:70)</span><br><span class="line">    at org.apache.sqoop.Sqoop.runSqoop(Sqoop.java:179)</span><br><span class="line">    at org.apache.sqoop.Sqoop.runTool(Sqoop.java:218)</span><br><span class="line">    at org.apache.sqoop.Sqoop.runTool(Sqoop.java:227)</span><br><span class="line">    at org.apache.sqoop.Sqoop.main(Sqoop.java:236)</span><br></pre></td></tr></table></figure>
 
 <p>问题原因：</p>
@@ -214,9 +216,9 @@
       </a>
     
     
-      <a href="/2018/10/23/flinkhbase01/" class="article-nav-link">
+      <a href="/2018/08/25/Flinkwatermarks/" class="article-nav-link">
         <strong class="article-nav-caption">下一篇</strong>
-        <div class="article-nav-title">flink 对接 HBase 开发</div>
+        <div class="article-nav-title">Flink Watermarks介绍</div>
       </a>
     
   </nav>
@@ -331,13 +333,13 @@
 <nav class="navbar">
   
   <div class="logo">
-    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+    <a href="/"><img src="/images/xingji.png" alt="TedWang 的大数据"></a>
   </div>
   
   <ul class="nav nav-main">
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/">主页</a>
+      <a class="nav-item-link" href="/index.html">主页</a>
     </li>
     
     <li class="nav-item">
@@ -349,7 +351,7 @@
     </li>
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/tags">标签</a>
+      <a class="nav-item-link" href="/tags/">标签</a>
     </li>
     
   </ul>

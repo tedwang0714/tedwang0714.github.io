@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+    
+  <meta name="description" content="大数据学习" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>
+    Spark 优化之加速启动 |  TedWang 的大数据
+  </title>
+  <meta name="generator" content="hexo-theme-yilia-plus">
+  
+  <link rel="shortcut icon" href="/images/xingji.png" />
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+<script src="/js/pace.min.js"></script>
+
+
+  
+
+  
+
+</head>
+
+</html>
+
+<body>
+  <div id="app">
+    <main class="content">
+      <section class="outer">
+  <article id="post-Spark 优化之加速启动" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h1 class="article-title sea-center" style="border-left:0" itemprop="name">
+  Spark 优化之加速启动
+</h1>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2018/03/09/Spark%20%E4%BC%98%E5%8C%96%E4%B9%8B%E5%8A%A0%E9%80%9F%E5%90%AF%E5%8A%A8/" class="article-date">
+  <time datetime="2018-03-09T04:00:00.000Z" itemprop="datePublished">2018-03-09</time>
+</a>
+      
+      
+      
+<div class="word_count">
+    <span class="post-time">
+        <span class="post-meta-item-icon">
+            <i class="ri-quill-pen-line"></i>
+            <span class="post-meta-item-text"> 字数统计:</span>
+            <span class="post-count">1.2k字</span>
+        </span>
+    </span>
+
+    <span class="post-time">
+        &nbsp; | &nbsp;
+        <span class="post-meta-item-icon">
+            <i class="ri-book-open-line"></i>
+            <span class="post-meta-item-text"> 阅读时长≈</span>
+            <span class="post-count">6分钟</span>
+        </span>
+    </span>
+</div>
+
+      
+    </div>
+    
+
+    
+    
+    <div class="tocbot"></div>
+
+
+
+
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="Spark-优化之加速启动"><a href="#Spark-优化之加速启动" class="headerlink" title="Spark 优化之加速启动"></a>Spark 优化之加速启动</h1><p>一. 问题背景</p>
+<p>Spark on YARN 每次启动时会将本地的 spark jar 和 conf 上传到 HDFS，这样会消耗很长的时间</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[hadoop@danner000 jars]$  spark-submit --class org.apache.spark.examples.SparkPi --master yarn --deploy-mode cluster spark-examples_2.11-2.4.4.jar 3</span><br><span class="line">...</span><br><span class="line">&#96;19&#x2F;10&#x2F;18 13:58:26 WARN yarn.Client: Neither spark.yarn.jars nor spark.yarn.archive is set, falling back to uploading libraries under SPARK_HOME.&#96;</span><br><span class="line">&#96;19&#x2F;10&#x2F;18 13:58:30 INFO yarn.Client: Uploading resource file:&#x2F;tmp&#x2F;spark-294ab9b7-97ff-4ffa-8e4f-ae44a89dd5da&#x2F;__spark_libs__1410305138065236635.zip -&gt; hdfs:&#x2F;&#x2F;192.168.22.147:9000&#x2F;user&#x2F;hadoop&#x2F;.sparkStaging&#x2F;application_1571146456067_0024&#x2F;__spark_libs__1410305138065236635.zip&#96;</span><br><span class="line">19&#x2F;10&#x2F;18 13:58:44 INFO yarn.Client: Uploading resource file:&#x2F;home&#x2F;hadoop&#x2F;app&#x2F;spark-2.4.4-bin-2.6.0-cdh5.15.1&#x2F;examples&#x2F;jars&#x2F;spark-examples_2.11-2.4.4.jar -&gt; hdfs:&#x2F;&#x2F;192.168.22.147:9000&#x2F;user&#x2F;hadoop&#x2F;.sparkStaging&#x2F;application_1571146456067_0024&#x2F;spark-examples_2.11-2.4.4.jar</span><br><span class="line">19&#x2F;10&#x2F;18 13:58:45 INFO yarn.Client: Uploading resource file:&#x2F;tmp&#x2F;spark-294ab9b7-97ff-4ffa-8e4f-ae44a89dd5da&#x2F;__spark_conf__5888474803491307773.zip -&gt; hdfs:&#x2F;&#x2F;192.168.22.147:9000&#x2F;user&#x2F;hadoop&#x2F;.sparkStaging&#x2F;application_1571146456067_0024&#x2F;__spark_conf__.zip</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>查看上面日志，是由于没有设置 ==spark.yarn.archive== 或 ==spark.yarn.jars==，所以每次启动的时候都会上传libs</p>
+<h3 id="二-优化过程"><a href="#二-优化过程" class="headerlink" title="二. 优化过程"></a>二. 优化过程</h3><p>既然知道是哪个属性的原因，那我们就从源码里看看如何设置</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; org.apache.spark.deploy.yarn.Client private def createContainerLaunchContext &#123;</span><br><span class="line">    ... </span><br><span class="line">    val appStagingDirPath &#x3D; new Path(appStagingBaseDir, getAppStagingDir(appId))</span><br><span class="line">    ...</span><br><span class="line">    val localResources &#x3D; prepareLocalResources(appStagingDirPath, pySparkArchives)</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line">&#x2F;&#x2F; org.apache.spark.deploy.yarn.Client def prepareLocalResources &#123;</span><br><span class="line">    ...</span><br><span class="line">    </span><br><span class="line">    def distribute &#123;</span><br><span class="line">      val trimmedPath &#x3D; path.trim()</span><br><span class="line">      val localURI &#x3D; Utils.resolveURI(trimmedPath)</span><br><span class="line">      if (localURI.getScheme !&#x3D; LOCAL_SCHEME) &#123;</span><br><span class="line">        if (addDistributedUri(localURI)) &#123;</span><br><span class="line">          val localPath &#x3D; getQualifiedLocalPath(localURI, hadoopConf)</span><br><span class="line">          val linkname &#x3D; targetDir.map(_ + &quot;&#x2F;&quot;).getOrElse(&quot;&quot;) +</span><br><span class="line">           destName.orElse(Option(localURI.getFragment())).getOrElse(localPath.getName())</span><br><span class="line">          val destPath &#x3D; copyFileToRemote(destDir, localPath, replication, symlinkCache)</span><br><span class="line">          val destFs &#x3D; FileSystem.get(destPath.toUri(), hadoopConf)</span><br><span class="line">          distCacheMgr.addResource(</span><br><span class="line">            destFs, hadoopConf, destPath, localResources, resType, linkname, statCache,</span><br><span class="line">            appMasterOnly &#x3D; appMasterOnly)</span><br><span class="line">          (false, linkname)</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">          (false, null)</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; else &#123;</span><br><span class="line">        (true, trimmedPath)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    &#x2F;** * Add Spark to the cache. There are two settings that control what files to add to the cache: * - if a Spark archive is defined, use the archive. The archive is expected to contain * jar files at its root directory. * - if a list of jars is provided, filter the non-local ones, resolve globs, and * add the found files to the cache. * * Note that the archive cannot be a &quot;local&quot; URI. If none of the above settings are found, * then upload all files found in $SPARK_HOME&#x2F;jars. *&#x2F;</span><br><span class="line">    val sparkArchive &#x3D; sparkConf.get(SPARK_ARCHIVE)</span><br><span class="line">    if (sparkArchive.isDefined) &#123;</span><br><span class="line">      val archive &#x3D; sparkArchive.get</span><br><span class="line">      require(!isLocalUri(archive), s&quot;$&#123;SPARK_ARCHIVE.key&#125; cannot be a local URI.&quot;)</span><br><span class="line">      distribute(Utils.resolveURI(archive).toString,</span><br><span class="line">        resType &#x3D; LocalResourceType.ARCHIVE,</span><br><span class="line">        destName &#x3D; Some(LOCALIZED_LIB_DIR))</span><br><span class="line">    &#125;else &#123;</span><br><span class="line">      sparkConf.get(SPARK_JARS) match &#123;</span><br><span class="line">      	case Some(jars) &#x3D;&gt;&#123;</span><br><span class="line">            &#x2F;&#x2F; 操作类似 SPARK_ARCHIVE，把 SPARK_JARS 上传；两者设置一个即可             ... </span><br><span class="line">        &#125;</span><br><span class="line">       case None &#x3D;&gt;</span><br><span class="line">          &#x2F;&#x2F; No configuration, so fall back to uploading local jar files.           logWarning(s&quot;Neither $&#123;SPARK_JARS.key&#125; nor $&#123;SPARK_ARCHIVE.key&#125; is set, falling back &quot; + &quot;to uploading libraries under SPARK_HOME.&quot;)</span><br><span class="line">          &#x2F;&#x2F; 把 spark&#x2F;jars 所有 jar 上传       &#125;</span><br><span class="line">       </span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"> private[yarn] def copyFileToRemote &#123;</span><br><span class="line">        val destFs &#x3D; destDir.getFileSystem(hadoopConf)</span><br><span class="line">        val srcFs &#x3D; srcPath.getFileSystem(hadoopConf)</span><br><span class="line">        var destPath &#x3D; srcPath</span><br><span class="line">        if (force || !compareFs(srcFs, destFs) || &quot;file&quot;.equals(srcFs.getScheme)) &#123;</span><br><span class="line">            destPath &#x3D; new Path(destDir, destName.getOrElse(srcPath.getName()))</span><br><span class="line">            logInfo(s&quot;Uploading resource $srcPath -&gt; $destPath&quot;)</span><br><span class="line">            FileUtil.copy(srcFs, srcPath, destFs, destPath, false, hadoopConf)</span><br><span class="line">            destFs.setReplication(destPath, replication)</span><br><span class="line">            destFs.setPermission(destPath, new FsPermission(APP_FILE_PERMISSION))</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            logInfo(s&quot;Source and destination file systems are the same. Not copying $srcPath&quot;)</span><br><span class="line">        &#125;</span><br><span class="line">        ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>设置 SPARK_ARCHIVE 后，将 SPARK_ARCHIVE 目录分发 (distribute)<br>distribute 中判断是否为本地文件和是否已上传</p>
+<p>copyFileToRemote 判断原文件和目标文件是否为同个文件系统，若相同则不上传</p>
+<p>destPath 在 createContainerLaunchContext 函数被赋值 appStagingDirPath，根据 hadoop job 执行流程 可知 StagingDir 是 Yarn job 为执行任务存放文件而临时创建的目录；在本案例中就是 HDFS 目录<br>由以上分析可知，只需将 SPARK_ARCHIVE 设置为 hdfs 目录就可以避免每次上传的困扰。</p>
+<p>将 spark/jars/*.jar 打包成 zip 并上传到 HDFS</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">spark-submit --class org.apache.spark.examples.SparkPi --master yarn --deploy-mode cluster &#96;--conf spark.yarn.archive&#x3D;hdfs:&#x2F;&#x2F;192.168.22.147:9000&#x2F;lib&#x2F;dep&#x2F;spark&#x2F;spark_jar.zip&#96; spark-examples_2.11-2.4.4.jar 3</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">19&#x2F;10&#x2F;18 12:39:16 INFO yarn.Client: Preparing resources for our AM container</span><br><span class="line">19&#x2F;10&#x2F;18 12:39:16 INFO yarn.Client: &#96;Source and destination file systems are the same. Not copying hdfs:&#x2F;&#x2F;192.168.22.147:9000&#x2F;lib&#x2F;dep&#x2F;spark&#x2F;spark_jar.tar&#96;</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>spark.yarn.archive 也可以设置在 spark-defaults.conf ;</p>
+<p>spark.yarn.jars 相同操作，两者等效</p>
+<p>Conf<br>看日志可知，每次启动也都上传，它会上传 SPARK_CONF_DIR 和 HADOOP_CONF_DIR目录下的文件。但此 Conf 无法优化，因为就是算是源文件和目标文件在同个文件系统，也会强制复制</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">&#x2F;&#x2F; This code forces the archive to be copied, so that unit tests pass (since in that case both     &#x2F;&#x2F; file systems are the same and the archive wouldn&#39;t normally be copied). In most (all?)     &#x2F;&#x2F; deployments, the archive would be copied anyway, since it&#39;s a temp file in the local file     &#x2F;&#x2F; system.     val remoteConfArchivePath &#x3D; new Path(destDir, LOCALIZED_CONF_ARCHIVE)</span><br><span class="line">    val remoteFs &#x3D; FileSystem.get(remoteConfArchivePath.toUri(), hadoopConf)</span><br><span class="line">    sparkConf.set(CACHED_CONF_ARCHIVE, remoteConfArchivePath.toString())</span><br><span class="line"></span><br><span class="line">    val localConfArchive &#x3D; new Path(createConfArchive().toURI())</span><br><span class="line">    copyFileToRemote(destDir, localConfArchive, replication, symlinkCache, force &#x3D; true,</span><br><span class="line">      destName &#x3D; Some(LOCALIZED_CONF_ARCHIVE))</span><br></pre></td></tr></table></figure>
+
+      
+      <!-- reward -->
+      
+      <div id="reward-btn">
+        打赏
+      </div>
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+        <div class="declare">
+          <ul class="post-copyright">
+            <li>
+              <i class="ri-copyright-line"></i>
+              <strong>版权声明： </strong s>
+              本博客所有文章除特别声明外，均采用 <a href="https://www.apache.org/licenses/LICENSE-2.0.html" rel="external nofollow"
+                target="_blank">Apache License 2.0</a> 许可协议。转载请注明出处！
+            </li>
+          </ul>
+        </div>
+        
+    <footer class="article-footer">
+      
+          
+<div class="share-btn">
+      <span class="share-sns share-outer">
+        <i class="ri-share-forward-line"></i>
+        分享
+      </span>
+      <div class="share-wrap">
+        <i class="arrow"></i>
+        <div class="share-icons">
+          
+          <a class="weibo share-sns" href="javascript:;" data-type="weibo">
+            <i class="ri-weibo-fill"></i>
+          </a>
+          <a class="weixin share-sns wxFab" href="javascript:;" data-type="weixin">
+            <i class="ri-wechat-fill"></i>
+          </a>
+          <a class="qq share-sns" href="javascript:;" data-type="qq">
+            <i class="ri-qq-fill"></i>
+          </a>
+          <a class="douban share-sns" href="javascript:;" data-type="douban">
+            <i class="ri-douban-line"></i>
+          </a>
+          <!-- <a class="qzone share-sns" href="javascript:;" data-type="qzone">
+            <i class="icon icon-qzone"></i>
+          </a> -->
+          
+          <a class="facebook share-sns" href="javascript:;" data-type="facebook">
+            <i class="ri-facebook-circle-fill"></i>
+          </a>
+          <a class="twitter share-sns" href="javascript:;" data-type="twitter">
+            <i class="ri-twitter-fill"></i>
+          </a>
+          <a class="google share-sns" href="javascript:;" data-type="google">
+            <i class="ri-google-fill"></i>
+          </a>
+        </div>
+      </div>
+</div>
+
+<div class="wx-share-modal">
+    <a class="modal-close" href="javascript:;"><i class="ri-close-circle-line"></i></a>
+    <p>扫一扫，分享到微信</p>
+    <div class="wx-qrcode">
+      <img src="//api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://yoursite.com/2018/03/09/Spark%20%E4%BC%98%E5%8C%96%E4%B9%8B%E5%8A%A0%E9%80%9F%E5%90%AF%E5%8A%A8/" alt="微信分享二维码">
+    </div>
+</div>
+
+<div id="share-mask"></div>
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+  
+  <nav class="article-nav">
+    
+      <a href="/2018/07/09/kafka01/" class="article-nav-link">
+        <strong class="article-nav-caption">上一篇</strong>
+        <div class="article-nav-title">
+          
+            kafka 第一课
+          
+        </div>
+      </a>
+    
+    
+      <a href="/2018/02/10/HBase02/" class="article-nav-link">
+        <strong class="article-nav-caption">下一篇</strong>
+        <div class="article-nav-title">HBase Flush,合并及Rowkey设计</div>
+      </a>
+    
+  </nav>
+
+
+  
+
+  
+  
+<!-- valine评论 -->
+<div id="vcomments-box">
+    <div id="vcomments">
+    </div>
+</div>
+<script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+<script src='https://cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>
+<script>
+    new Valine({
+        el: '#vcomments',
+        app_id: '',
+        app_key: '',
+        path: window.location.pathname,
+        notify: 'false',
+        verify: 'false',
+        avatar: 'mp',
+        placeholder: '给我的文章加点评论吧~',
+        recordIP: true
+    });
+    const infoEle = document.querySelector('#vcomments .info');
+    if (infoEle && infoEle.childNodes && infoEle.childNodes.length > 0) {
+        infoEle.childNodes.forEach(function (item) {
+            item.parentNode.removeChild(item);
+        });
+    }
+</script>
+<style>
+    #vcomments-box {
+        padding: 5px 30px;
+    }
+
+    @media screen and (max-width: 800px) {
+        #vcomments-box {
+            padding: 5px 0px;
+        }
+    }
+
+    #vcomments-box #vcomments {
+        background-color: #fff;
+    }
+
+    .v .vlist .vcard .vh {
+        padding-right: 20px;
+    }
+
+    .v .vlist .vcard {
+        padding-left: 10px;
+    }
+</style>
+
+  
+
+  
+  
+  
+
+</article>
+</section>
+      <footer class="footer">
+  <div class="outer">
+    <ul class="list-inline">
+      <li>
+        &copy;
+        2015-2020
+        tedwang0714
+      </li>
+      <li>
+        
+          Powered by
+        
+        
+        <a href="https://hexo.io" target="_blank">Hexo</a> Theme <a href="https://github.com/Shen-Yu/hexo-theme-ayer" target="_blank">Ayer</a>
+        
+      </li>
+    </ul>
+    <ul class="list-inline">
+      <li>
+        
+        
+        <span>
+  <i>PV:<span id="busuanzi_value_page_pv"></span></i>
+  <i>UV:<span id="busuanzi_value_site_uv"></span></i>
+</span>
+        
+      </li>
+      <li>
+        <!-- cnzz统计 -->
+        
+        <script type="text/javascript" src='https://s9.cnzz.com/z_stat.php?id=1278069914&amp;web_id=1278069914'></script>
+        
+      </li>
+    </ul>
+  </div>
+</footer>
+    <div class="to_top">
+        <div class="totop" id="totop">
+  <i class="ri-arrow-up-line"></i>
+</div>
+      </div>
+    </main>
+      <aside class="sidebar">
+        <button class="navbar-toggle"></button>
+<nav class="navbar">
+  
+  <div class="logo">
+    <a href="/"><img src="/images/xingji.png" alt="TedWang 的大数据"></a>
+  </div>
+  
+  <ul class="nav nav-main">
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/index.html">主页</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/archives">归档</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/categories">分类</a>
+    </li>
+    
+    <li class="nav-item">
+      <a class="nav-item-link" href="/tags/">标签</a>
+    </li>
+    
+  </ul>
+</nav>
+<nav class="navbar navbar-bottom">
+  <ul class="nav">
+    <li class="nav-item">
+      
+      <a class="nav-item-link nav-item-search"  title="Search">
+        <i class="ri-search-line"></i>
+      </a>
+      
+      
+      <a class="nav-item-link" target="_blank" href="/atom.xml" title="RSS Feed">
+        <i class="ri-rss-line"></i>
+      </a>
+      
+    </li>
+  </ul>
+</nav>
+<div class="search-form-wrap">
+  <div class="local-search local-search-plugin">
+  <input type="search" id="local-search-input" class="local-search-input" placeholder="Search...">
+  <div id="local-search-result" class="local-search-result"></div>
+</div>
+</div>
+      </aside>
+      <div id="mask"></div>
+
+<!-- #reward -->
+<div id="reward">
+  <span class="close"><i class="ri-close-line"></i></span>
+  <p class="reward-p"><i class="ri-cup-line"></i>请我喝杯咖啡吧~</p>
+  <div class="reward-box">
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/alipay.jpg">
+      <span class="reward-type">支付宝</span>
+    </div>
+    
+    
+    <div class="reward-item">
+      <img class="reward-img" src="/images/wechat.jpg">
+      <span class="reward-type">微信</span>
+    </div>
+    
+  </div>
+</div>
+      
+<script src="/js/jquery-2.0.3.min.js"></script>
+
+
+<script src="/js/jquery.justifiedGallery.min.js"></script>
+
+
+<script src="/js/lazyload.min.js"></script>
+
+
+<script src="/js/busuanzi-2.3.pure.min.js"></script>
+
+
+<script src="/js/share.js"></script>
+
+
+
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script>
+  try {
+    var typed = new Typed("#subtitle", {
+    strings: ['人类精神必须置于技术之上','',''],
+    startDelay: 0,
+    typeSpeed: 200,
+    loop: true,
+    backSpeed: 100,
+    showCursor: true
+    });
+  } catch (err) {
+  }
+  
+</script>
+
+
+
+
+<script src="/js/tocbot.min.js"></script>
+
+<script>
+  // Tocbot_v4.7.0  http://tscanlin.github.io/tocbot/
+  tocbot.init({
+    tocSelector: '.tocbot',
+    contentSelector: '.article-entry',
+    headingSelector: 'h1, h2, h3, h4, h5, h6',
+    hasInnerContainers: true,
+    scrollSmooth: true,
+    scrollContainer:'main',
+    positionFixedSelector: '.tocbot',
+    positionFixedClass: 'is-position-fixed',
+    fixedSidebarOffset: 'auto',
+    onClick: (e) => {
+      $('.toc-link').removeClass('is-active-link');
+      $(`a[href=${e.target.hash}]`).addClass('is-active-link');
+      $(e.target.hash).scrollIntoView();
+      return false;
+    }
+  });
+</script>
+
+
+<script>
+  var ayerConfig = {
+    mathjax: false
+  }
+</script>
+
+
+<script src="/js/ayer.js"></script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery-modal@0.9.2/jquery.modal.min.css">
+
+
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" style="display:none" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo http://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                        <div class="pswp__preloader__cut">
+                            <div class="pswp__preloader__donut"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div>
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.css">
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js"></script>
+
+<script>
+    function viewer_init() {
+        let pswpElement = document.querySelectorAll('.pswp')[0];
+        let $imgArr = document.querySelectorAll(('.article-entry img:not(.reward-img)'))
+
+        $imgArr.forEach(($em, i) => {
+            $em.onclick = () => {
+                // slider展开状态
+                // todo: 这样不好，后面改成状态
+                if (document.querySelector('.left-col.show')) return
+                let items = []
+                $imgArr.forEach(($em2, i2) => {
+                    let img = $em2.getAttribute('data-idx', i2)
+                    let src = $em2.getAttribute('data-target') || $em2.getAttribute('src')
+                    let title = $em2.getAttribute('alt')
+                    // 获得原图尺寸
+                    const image = new Image()
+                    image.src = src
+                    items.push({
+                        src: src,
+                        w: image.width || $em2.width,
+                        h: image.height || $em2.height,
+                        title: title
+                    })
+                })
+                var gallery = new PhotoSwipe(pswpElement, PhotoSwipeUI_Default, items, {
+                    index: parseInt(i)
+                });
+                gallery.init()
+            }
+        })
+    }
+    viewer_init()
+</script>
+
+
+
+
+<script type="text/javascript" src="https://js.users.51.la/20544303.js"></script>
+  </div>
+</body>
+
+</html>

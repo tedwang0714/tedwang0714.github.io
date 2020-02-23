@@ -12,7 +12,7 @@
   </title>
   <meta name="generator" content="hexo-theme-yilia-plus">
   
-  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="shortcut icon" href="/images/xingji.png" />
   
   
 <link rel="stylesheet" href="/css/style.css">
@@ -34,11 +34,6 @@
     <main class="content">
       
 <section class="cover">
-    
-      
-      <a class="forkMe" href="https://github.com/Shen-Yu/hexo-theme-ayer"
-        target="_blank"><img width="149" height="149" src="/images/forkme.png"
-          class="attachment-full size-full" alt="Fork me on GitHub" data-recalc-dims="1"></a>
     
   <div class="cover-frame">
     <div class="bg-box">
@@ -71,6 +66,256 @@
     
     
     
+    
+    <article id="post-HBase01" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h2 itemprop="name">
+  <a class="article-title" href="/2018/01/24/HBase01/"
+    >HBase 第一课</a
+  >
+</h2>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2018/01/24/HBase01/" class="article-date">
+  <time datetime="2018-01-24T12:43:27.000Z" itemprop="datePublished">2018-01-24</time>
+</a>
+      
+      
+      
+      
+    </div>
+    
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="HBase01"><a href="#HBase01" class="headerlink" title="HBase01"></a>HBase01</h1><p>学习目标：</p>
+<ol>
+<li>hbase 架构</li>
+<li>hbase 写流程</li>
+<li>hbase 读流程</li>
+<li>hbase web页面</li>
+</ol>
+<h3 id="一-hbase架构"><a href="#一-hbase架构" class="headerlink" title="一. hbase架构"></a>一. hbase架构</h3><ol>
+<li>hbase 逻辑图<br><img src="/2018/01/24/HBase01/RegionLogic.png" alt="avatar"><br><img src="/2018/01/24/HBase01/datalogic.png" alt="avatar"></li>
+</ol>
+<p>一个表包含多个region，如果不指定 splitKey，则默认是一个region，当数据达到一定量时，开始分裂成多个region</p>
+<p>一个region包含 一个或多个ColumnFamily，即列族，它是一些有相近概念的字段的集合，比如 SKU族， Order族，一般列族不超过3个</p>
+<p>一个列族对应一个store，一个store包含 一个 memstore和0到多个storefile<br>数据写是先写到memstore，如何超过一定数据量，就flush到磁盘写道storefile中</p>
+<ol start="2">
+<li>HBase 的数据模型<br>我们以 下图为例，它有两个 CF, 即 SKU 和 Order<br>左边 五列实际上是一个 store，右边 5列是另一个 store<br>row1的数据就是 SKUName，SKUNum，SKUSum，因为SKUPrice是空值<br>它不会被记录<br><img src="/2018/01/24/HBase01/datamate1.png" alt="avatar"></li>
+</ol>
+<ol start="3">
+<li>HBase 数据模型多版本<br>看下这个图，对于row2，可以看到SKUName 有两个值<br>但是它们的Timestamp 不一样，这就是 HBase的特点，它会把<br>更新的值也insert 进去，只不过时间戳不一样，这就决定了它<br>的写很快的特点</li>
+</ol>
+<p><img src="/2018/01/24/HBase01/datamate2.png" alt="avatar"></p>
+<h3 id="二-HBase-写流程"><a href="#二-HBase-写流程" class="headerlink" title="二. HBase 写流程"></a>二. HBase 写流程</h3><ul>
+<li>第一步：和zookeeper通信，get /hasbe/meta-region-server<br>作用是找到 存储 hbase:meta 表的server</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">[zk: localhost:2181(CONNECTED) 2] get &#x2F;hbase&#x2F;meta-region-server</span><br><span class="line">�regionserver:60020���I�&#39;_PBUF</span><br><span class="line"></span><br><span class="line">cZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">ctime &#x3D; Sun Feb 16 10:34:37 CST 2020</span><br><span class="line"></span><br><span class="line">mZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">mtime &#x3D; Sun Feb 16 10:34:37 CST 2020</span><br><span class="line"></span><br><span class="line">pZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">cversion &#x3D; 0</span><br><span class="line"></span><br><span class="line">dataVersion &#x3D; 0</span><br><span class="line"></span><br><span class="line">aclVersion &#x3D; 0</span><br><span class="line"></span><br><span class="line">ephemeralOwner &#x3D; 0x0</span><br><span class="line"></span><br><span class="line">dataLength &#x3D; 62</span><br><span class="line"></span><br><span class="line">numChildren &#x3D; 0</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第二步 读取 hbase:meta 表，主要获取如下信息</li>
+</ul>
+<p>表名称/startkey/endkey/字段名称</p>
+<p>这样就知道了哪个表在哪台server上，要写入哪个rowkey</p>
+<p>这个是 hasbe:meta 的信息：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">tedata:orderinfo,,1576370203149.63c59b5a54 column&#x3D;info:regioninfo, timestamp&#x3D;1581820480055, value&#x3D;&#123;ENCODED &#x3D;&gt; 63c59b5a54b02a27d8969ac352cb6e81, NAME &#x3D;&gt; &#39;tedata:orderinfo,</span><br><span class="line"> b02a27d8969ac352cb6e81.                    ,1576370203149.63c59b5a54b02a27d8969ac352cb6e81.&#39;, STARTKEY &#x3D;&gt; &#39;&#39;, ENDKEY &#x3D;&gt; &#39;&#39;&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第三步 写HLOG 文件</li>
+</ul>
+<p>HBase先会写入 HLOG 日志文件，也成为预写日志文件，只有HLOG 写入成功了，才会写入 去写memstore，这样就保证了数据不会丢失</p>
+<ul>
+<li>第四步 写store </li>
+</ul>
+<p>HLOG写入成功后，开始把数据写入 memstore，当memstore写满，flush到storefile中<br>storefile 和 DFS Client 通信，写入到 HDFS 中</p>
+<h3 id="三-HBase-读流程"><a href="#三-HBase-读流程" class="headerlink" title="三. HBase 读流程"></a>三. HBase 读流程</h3><ul>
+<li>第一步：和zookeeper通信，get /hasbe/meta-region-server<br>作用是找到 存储 hbase:meta 表的server</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">[zk: localhost:2181(CONNECTED) 2] get &#x2F;hbase&#x2F;meta-region-server</span><br><span class="line">�regionserver:60020���I�&#39;_PBUF</span><br><span class="line"></span><br><span class="line">cZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">ctime &#x3D; Sun Feb 16 10:34:37 CST 2020</span><br><span class="line"></span><br><span class="line">mZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">mtime &#x3D; Sun Feb 16 10:34:37 CST 2020</span><br><span class="line"></span><br><span class="line">pZxid &#x3D; 0x300000576</span><br><span class="line"></span><br><span class="line">cversion &#x3D; 0</span><br><span class="line"></span><br><span class="line">dataVersion &#x3D; 0</span><br><span class="line"></span><br><span class="line">aclVersion &#x3D; 0</span><br><span class="line"></span><br><span class="line">ephemeralOwner &#x3D; 0x0</span><br><span class="line"></span><br><span class="line">dataLength &#x3D; 62</span><br><span class="line"></span><br><span class="line">numChildren &#x3D; 0</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第二步 读取 hbase:meta 表，主要获取如下信息</li>
+</ul>
+<p>表名称/startkey/endkey/字段名称</p>
+<p>这样就知道了哪个表在哪台server上，要写入哪个rowkey</p>
+<p>这个是 hasbe:meta 的信息：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">tedata:orderinfo,,1576370203149.63c59b5a54 column&#x3D;info:regioninfo, timestamp&#x3D;1581820480055, value&#x3D;&#123;ENCODED &#x3D;&gt; 63c59b5a54b02a27d8969ac352cb6e81, NAME &#x3D;&gt; &#39;tedata:orderinfo,</span><br><span class="line"> b02a27d8969ac352cb6e81.                    ,1576370203149.63c59b5a54b02a27d8969ac352cb6e81.&#39;, STARTKEY &#x3D;&gt; &#39;&#39;, ENDKEY &#x3D;&gt; &#39;&#39;&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>第三步</li>
+</ul>
+<p>先去memstore读取数据，如果没有，从Blockcache 读取，如果没有，<br>去HDFS 读取数据</p>
+
+      
+      <!-- reward -->
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+    <footer class="article-footer">
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+
+  
+  
+  
+
+  
+
+</article>
+    
+    <article id="post-CDH完美卸载" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h2 itemprop="name">
+  <a class="article-title" href="/2017/07/20/CDH%E5%AE%8C%E7%BE%8E%E5%8D%B8%E8%BD%BD/"
+    >CDH 完美卸载</a
+  >
+</h2>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2017/07/20/CDH%E5%AE%8C%E7%BE%8E%E5%8D%B8%E8%BD%BD/" class="article-date">
+  <time datetime="2017-07-20T12:43:27.000Z" itemprop="datePublished">2017-07-20</time>
+</a>
+      
+      
+      
+      
+    </div>
+    
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="CDH完美卸载"><a href="#CDH完美卸载" class="headerlink" title="CDH完美卸载"></a>CDH完美卸载</h1><ul>
+<li><input checked disabled type="checkbox"> 学习目标：</li>
+<li><input checked disabled type="checkbox"> CDH 卸载</li>
+</ul>
+<h3 id="一-卸载前的规划"><a href="#一-卸载前的规划" class="headerlink" title="一. 卸载前的规划"></a>一. 卸载前的规划</h3><ul>
+<li>关闭集群 及 MySQL服务</li>
+<li>删除部署文件夹 /opt/cloudera*</li>
+<li>删除数据文件夹</li>
+</ul>
+<h3 id="二-如何完美卸载集群"><a href="#二-如何完美卸载集群" class="headerlink" title="二.如何完美卸载集群"></a>二.如何完美卸载集群</h3><ol>
+<li>HDFS YARN ZK存储数据目录</li>
+</ol>
+<ul>
+<li>/dfs/nn</li>
+<li>/dfs/dn</li>
+<li>/dfs/snn</li>
+<li>/yarn/nm</li>
+<li>/var/lib/zookeeper</li>
+</ul>
+<ol start="2">
+<li><p>关闭集群 及 MySQL服务</p>
+</li>
+<li><p>杀进程(执行2次)</p>
+</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kill -9 $(pgrep -f cloudera)</span><br><span class="line">pgrep -f cloudera</span><br></pre></td></tr></table></figure>
+
+
+<p>2.4 卸载</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">umount &#x2F;opt&#x2F;cloudera-manager&#x2F;cm-5.16.2&#x2F;run&#x2F;cloudera-scm-agent&#x2F;process</span><br></pre></td></tr></table></figure>
+
+
+<p>假如无法卸载，夯住了 就强制kill</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">yum install -y lsof</span><br><span class="line">lsof &#x2F;opt&#x2F;cloudera-manager&#x2F;cm-5.16.2&#x2F;run&#x2F;cloudera-scm-agent&#x2F;process</span><br><span class="line">kill -9 $(lsof &#x2F;opt&#x2F;cloudera-manager&#x2F;cm-5.16.2&#x2F;run&#x2F;cloudera-scm-agent&#x2F;process | awk &#39;&#123;print $2&#125;&#39;)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>一定要再df -h 校验一下</p>
+<p>2.5 删除cloudera部署文件夹</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">rm -rf &#x2F;opt&#x2F;cloudera*</span><br><span class="line">rm -rf &#x2F;dfs &#x2F;yarn &#x2F;var&#x2F;lib&#x2F;zookeeper</span><br><span class="line"></span><br><span class="line">rm -rf &#x2F;usr&#x2F;share&#x2F;cmf</span><br><span class="line">rm -rf &#x2F;var&#x2F;lib&#x2F;cloudera*</span><br><span class="line">rm -rf &#x2F;var&#x2F;log&#x2F;cloudera*</span><br><span class="line">rm -rf &#x2F;run&#x2F;cloudera-scm-agent</span><br><span class="line">rm -rf &#x2F;etc&#x2F;security&#x2F;limits.d&#x2F;cloudera-scm.conf </span><br><span class="line">rm -rf &#x2F;etc&#x2F;cloudera*</span><br><span class="line">rm -rf &#x2F;etc&#x2F;hadoop* &#x2F;etc&#x2F;zookeeper &#x2F;etc&#x2F;hive* &#x2F;etc&#x2F;hbase* &#x2F;etc&#x2F;impala &#x2F;etc&#x2F;spark &#x2F;etc&#x2F;solr &#x2F;etc&#x2F;sqoop*</span><br><span class="line">rm -rf &#x2F;tmp&#x2F;scm_*   &#x2F;tmp&#x2F;.scm_prepare_node.lock</span><br></pre></td></tr></table></figure>
+
+
+<p>2.6 全局搜索 删除</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">find &#x2F; -name &#39;*cloudera*&#39; | while read line; do rm -rf $&#123;line&#125;; done</span><br></pre></td></tr></table></figure>
+
+
+<p>2.7 MySQL的数据库</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">cmf db--》cm server</span><br><span class="line">amon db--》amon</span><br><span class="line"></span><br><span class="line">mysql&gt; drop database cmf;</span><br><span class="line">Query OK, 47 rows affected (0.60 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; drop database amon;</span><br><span class="line">Query OK, 64 rows affected (0.23 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; drop user cmf;</span><br><span class="line">Query OK, 0 rows affected (0.00 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; drop user amon;</span><br><span class="line">Query OK, 0 rows affected (0.00 sec)</span><br><span class="line"></span><br><span class="line">mysql&gt; use mysql;</span><br><span class="line">Database changed</span><br><span class="line">mysql&gt; select user from user;</span><br><span class="line">+-----------+</span><br><span class="line">| user      |</span><br><span class="line">+-----------+</span><br><span class="line">| root      |</span><br><span class="line">| mysql.sys |</span><br><span class="line">| root      |</span><br><span class="line">+-----------+</span><br><span class="line">3 rows in set (0.00 sec)</span><br></pre></td></tr></table></figure>
+
+
+<h3 id="三-有个坑需要踩"><a href="#三-有个坑需要踩" class="headerlink" title="三. 有个坑需要踩"></a>三. 有个坑需要踩</h3><p>alternatives 一个组件多版本 动态管理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[root@ruozedata001 alternatives]# alternatives --config hadoop</span><br><span class="line"></span><br><span class="line">There is 1 program that provides &#39;hadoop&#39;.</span><br><span class="line"></span><br><span class="line">  Selection    Command</span><br><span class="line">-----------------------------------------------</span><br><span class="line">*+ 1           &#x2F;opt&#x2F;cloudera&#x2F;parcels&#x2F;CDH-5.16.2-1.cdh5.16.2.p0.8&#x2F;bin&#x2F;hadoop</span><br><span class="line"> + 2 	       &#x2F;opt&#x2F;cloudera&#x2F;parcels&#x2F;CDH-5.16.3-1.cdh5.16.3.p0.8&#x2F;bin&#x2F;hadoop</span><br><span class="line"></span><br><span class="line">Enter to keep the current selection[+], or type selection number: 1</span><br><span class="line">[root@ruozedata001 alternatives]#</span><br></pre></td></tr></table></figure>
+
+
+
+<p>未来，本套机器需要升级 假如CDH5.16.3,就是hadoop命令找不到<br>修复这个版本切换：  alternatives –config hadoop<br><a href="http://blog.itpub.net/30089851/viewspace-2128683/" target="_blank" rel="noopener">http://blog.itpub.net/30089851/viewspace-2128683/</a></p>
+
+      
+      <!-- reward -->
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+    <footer class="article-footer">
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+
+  
+  
+  
+
+  
+
+</article>
     
     <article id="post-CDH通过实例恢复集群" class="article article-type-post" itemscope
   itemprop="blogPost" data-scroll-reveal>
@@ -639,6 +884,144 @@ df.createOrReplaceTempView(&quot;log&quot;)</code></pre><p>row_number<br>rank<br
 
 </article>
     
+    <article id="post-HiveSQL1" class="article article-type-post" itemscope
+  itemprop="blogPost" data-scroll-reveal>
+
+  <div class="article-inner">
+    
+    <header class="article-header">
+       
+<h2 itemprop="name">
+  <a class="article-title" href="/2017/03/25/HiveSQL1/"
+    >Hive SQL 记录1</a
+  >
+</h2>
+  
+
+    </header>
+    
+
+    
+    <div class="article-meta">
+      <a href="/2017/03/25/HiveSQL1/" class="article-date">
+  <time datetime="2017-03-25T12:43:27.000Z" itemprop="datePublished">2017-03-25</time>
+</a>
+      
+      
+      
+      
+    </div>
+    
+
+    
+
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+
+
+      
+
+      
+      <h1 id="Hive-SQL-记录"><a href="#Hive-SQL-记录" class="headerlink" title="Hive SQL 记录"></a>Hive SQL 记录</h1><h3 id="案例一"><a href="#案例一" class="headerlink" title="案例一"></a>案例一</h3><p>表中有如下字段：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">domain           time     traffic(T)</span><br><span class="line">gifshow.com   2019&#x2F;01&#x2F;01    5</span><br><span class="line">yy.com        2019&#x2F;01&#x2F;01    4</span><br><span class="line">huya.com      2019&#x2F;01&#x2F;01    1</span><br><span class="line">gifshow.com   2019&#x2F;01&#x2F;20    6</span><br><span class="line">gifshow.com   2019&#x2F;02&#x2F;01    8</span><br><span class="line">yy.com        2019&#x2F;01&#x2F;20    5</span><br><span class="line">gifshow.com   2019&#x2F;02&#x2F;02    7</span><br></pre></td></tr></table></figure>
+
+<p>需求是按月统计每个用户的累计访问量(只能用一个 SQL)，结果如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">domain          month     traffics   totals</span><br><span class="line">gifshow.com     2019-01      11         11</span><br><span class="line">gifshow.com     2019-02      15         26</span><br><span class="line">yy.com          2019-01       9         9</span><br><span class="line">huya.com        2019-01       1         1</span><br></pre></td></tr></table></figure>
+
+<p>需求分析：</p>
+<p>每个用户每月的访问量：group by 用户，月；然后再 sum<br>相同每月数据累加：<br>第一步的按月和用户统计：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select domain,substr(time,1,7) ,sum(traffic) from domain_traffic group by domain,substr(time,1,7);</span><br></pre></td></tr></table></figure>
+
+
+<p>结果输出如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">gifshow.com     2019&#x2F;01 11</span><br><span class="line">gifshow.com     2019&#x2F;02 15</span><br><span class="line">huya.com        2019&#x2F;01 1</span><br><span class="line">yy.com  2019&#x2F;01 9</span><br></pre></td></tr></table></figure>
+
+<p>第二步，相同用户每月累加</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">select ms.domain,ms.m,ms.s,sum(ms.s)over(partition by ms.domain order by ms.m) from </span><br><span class="line">(select domain,substr(time,1,7) m ,sum(traffic) s from domain_traffic group by domain,substr(time,1,7)) ms;</span><br><span class="line">使用 sum()over() 函数实现累加功能，over 实现分组排序，sum 实现就有点意思：将本组内当前行以及之前的行全部相加(01之前没有最终只有01，02之前是01最终是01+02)。</span><br></pre></td></tr></table></figure>
+
+
+<h3 id="案例二："><a href="#案例二：" class="headerlink" title="案例二："></a>案例二：</h3><p>表数据如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">uid		pid</span><br><span class="line">li  	a</span><br><span class="line">zhang   b</span><br><span class="line">li  	a</span><br><span class="line">zhang   a</span><br><span class="line">wang    a</span><br><span class="line">john    a</span><br><span class="line">zhang   a</span><br><span class="line">wang    a</span><br><span class="line">tom 	b</span><br><span class="line">ao  	b</span><br><span class="line">wang    b</span><br><span class="line">tom 	b</span><br><span class="line">wang    b</span><br><span class="line">wang    b</span><br><span class="line">wang    b</span><br><span class="line">zhang   b</span><br><span class="line">zhang   b</span><br><span class="line">ao  	a</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>统计产品 UV</li>
+<li>统计每个产品 top3 用户</li>
+</ol>
+<p>UV：按产品分组，count (uid 排重 )</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select pid,count(distinct uid) from uid_pid group by pid;</span><br></pre></td></tr></table></figure>
+
+<p>结果：</p>
+<p>a       5<br>b       4<br>top3：</p>
+<p>按产品、用户分组，count(1) 排序，limit 取 top (整体取 top)<br>select uid,pid,count(1) m from uid_pid group by uid,pid order by m desc limit 3</p>
+<p>产品 top ：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">select t.uid,t.pid,t.m from (select s.uid,s.pid,s.m,row_number()over(partition by pid order by s.m desc) as rank from (select uid,pid,count(1) m from uid_pid group by uid,pid) s ) t where t.rank &lt;&#x3D; 3;</span><br></pre></td></tr></table></figure>
+
+
+<p>输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">zhang   a       2</span><br><span class="line">wang    a       2</span><br><span class="line">li      a       2</span><br><span class="line">wang    b       4</span><br><span class="line">zhang   b       3</span><br><span class="line">tom     b       2</span><br></pre></td></tr></table></figure>
+
+<p>使用 row_number()over 函数实现分组 Top。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">row_number()over() 作用就是分组排序并加上序号标记：over 中按 pid 分组，并按 次数 m 降序排列，row_numbe()</span><br></pre></td></tr></table></figure>
+<p> 记录排序相当于增加了一列序号 rank。</p>
+<p>总结<br>以上两个案例都用到 over 这个函数，我们从 MR 角度来讲解 over 作用。</p>
+<h3 id="行列转换"><a href="#行列转换" class="headerlink" title="行列转换"></a>行列转换</h3><h3 id="行转列"><a href="#行转列" class="headerlink" title="行转列"></a>行转列</h3><p>将多行数据合并成某列</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_id</span><br><span class="line">104399	2105395</span><br><span class="line">104399	1715131</span><br><span class="line">104400	1609001</span><br><span class="line">104400	2986088</span><br><span class="line">104400	1795054</span><br><span class="line">select user_id,concat_ws(&#39;,&#39;,collect_set(order_id)) as order_value</span><br><span class="line">from table</span><br><span class="line">group by user_id ;</span><br></pre></td></tr></table></figure>
+
+<p>结果输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_value</span><br><span class="line">104399	2105395,1715131</span><br><span class="line">104400	1609001,2986088,1795054</span><br></pre></td></tr></table></figure>
+
+<p>按 user_id 分组后，每个user_id 都对应多个order_id；接着 collect_set 收集多个 order_id 并去重；最后由 concat_ws 指定分隔符将数组中的 order_id 合并成一个字符串</p>
+<p>collect_list 不去重，collect_set 去重，但类型要求是 string</p>
+<p>将多行数据转成多列</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">name	subject	score</span><br><span class="line">张三	语文	80</span><br><span class="line">张三	数学	90</span><br><span class="line">张三	英语	60</span><br></pre></td></tr></table></figure>
+
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">select name,</span><br><span class="line">	max(case when subject &#x3D;&#39;语文&#39; then score else 0 end) as Chinese,</span><br><span class="line">	max(case when subject &#x3D;&#39;数学&#39; then score else 0 end) as Math,</span><br><span class="line">	max(case when subject &#x3D;&#39;英语&#39; then score else 0 end) as English</span><br><span class="line">from table</span><br><span class="line">group by name</span><br></pre></td></tr></table></figure>
+
+<p>name    Chinese    Math    English<br>张三    80    90    60</p>
+<h3 id="列转行"><a href="#列转行" class="headerlink" title="列转行"></a>列转行</h3><p>将某列数据扩展成多行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_value</span><br><span class="line">104399	2105395,1715131</span><br><span class="line">104400	1609001,2986088,1795054</span><br><span class="line">select user_id,order_id</span><br><span class="line">from table</span><br><span class="line">lateral view explode(split(order_value,&#39;,&#39;)) t as order_id;</span><br></pre></td></tr></table></figure>
+
+<p>结果输出</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">user_id	order_id</span><br><span class="line">104399	2105395</span><br><span class="line">104399	1715131</span><br><span class="line">104400	1609001</span><br><span class="line">104400	2986088</span><br><span class="line">104400	1795054</span><br><span class="line">lateral view explode(数组)</span><br></pre></td></tr></table></figure>
+<p> 将数组中每个值都扩展成一行中列值。上面例子中，由 split 将 order_value 变成一个 order 数组，然后再由 explode 扩展成列。</p>
+<p>将多列数据转成多行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">name	Chinese	Math	English</span><br><span class="line">张三	80	90	60</span><br><span class="line"> select a.name,b.label,b.value</span><br><span class="line"> from (select * from table )a</span><br><span class="line">    lateral view explode(map(</span><br><span class="line">        &#39;语文&#39;,Chinese,</span><br><span class="line">        &#39;数学&#39;,Math,</span><br><span class="line">        &#39;英语&#39;,English</span><br><span class="line">    )) b as label ,value</span><br><span class="line">name	subject	score</span><br><span class="line">张三	语文	80</span><br><span class="line">张三	数学	90</span><br><span class="line">张三	英语	60</span><br></pre></td></tr></table></figure>
+
+<p>留存<br>用户留存率一般是面向新增用户的概念，指某一天注册后的几天还是否活跃,是以每天为单位进行计算的。一般收到的需求都是一个时间段内的新增用户的几天留存。</p>
+<p>根据留存的定义可知，我们需要求两个数<br>：新增和某日留存数，两者相除可得留存率。新增数很简单一般都会有标识，留存数需要有条件限定：假设求2018-05-18日的3日留存，先获取2018-05-18的新增 user_ids，然后判断当前活跃用户的 id 是否包含在 user_ids 且 ( 当前活跃的日期 - 2018-05-18 ) = 2。</p>
+<p>/<em>计算某日新增登录设备的次日、3日、7日、14日、30日、90日留存率</em>/</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">SELECT</span><br><span class="line">	log_day &#39;日期&#39;,</span><br><span class="line">	count(user_id_d0) &#39;新增数量&#39;,</span><br><span class="line">	count(user_id_d1) &#x2F; count(user_id_d0) &#39;次日留存&#39;,</span><br><span class="line">	count(user_id_d3) &#x2F; count(user_id_d0) &#39;3日留存&#39;,</span><br><span class="line">	count(user_id_d7) &#x2F; count(user_id_d0) &#39;7日留存&#39;,</span><br><span class="line">	count(user_id_d14) &#x2F; count(user_id_d0) &#39;14日留存&#39;,</span><br><span class="line">	count(user_id_d30) &#x2F; count(user_id_d0) &#39;30日留存&#39;,</span><br><span class="line">	count(user_id_d90) &#x2F; count(user_id_d0) &#39;90日留存&#39;</span><br><span class="line">FROM</span><br><span class="line">	(</span><br><span class="line">		SELECT DISTINCT</span><br><span class="line">			log_day,</span><br><span class="line">			a.user_id_d0,</span><br><span class="line">			b.device_id AS user_id_d1,</span><br><span class="line">			c.device_id AS user_id_d3,</span><br><span class="line">			d.device_id AS user_id_d7,</span><br><span class="line">			e.device_id AS user_id_d14,</span><br><span class="line">			f.device_id AS user_id_d30,</span><br><span class="line">			g.device_id AS user_id_d90</span><br><span class="line">		FROM</span><br><span class="line">			(</span><br><span class="line">				SELECT DISTINCT</span><br><span class="line">					Date(event_time) AS log_day,</span><br><span class="line">					device_id AS user_id_d0</span><br><span class="line">				FROM</span><br><span class="line">					role_login_back</span><br><span class="line">				GROUP BY</span><br><span class="line">					device_id</span><br><span class="line">				ORDER BY</span><br><span class="line">					log_day</span><br><span class="line">			) a</span><br><span class="line">		LEFT JOIN role_login_back b ON DATEDIFF(DATE(b.event_time),a.log_day) &#x3D; 1</span><br><span class="line">		AND a.user_id_d0 &#x3D; b.device_id</span><br><span class="line">		LEFT JOIN role_login_back c ON DATEDIFF(DATE(c.event_time),a.log_day) &#x3D; 2</span><br><span class="line">		AND a.user_id_d0 &#x3D; c.device_id</span><br><span class="line">		LEFT JOIN role_login_back d ON DATEDIFF(DATE(d.event_time),a.log_day) &#x3D; 6</span><br><span class="line">		AND a.user_id_d0 &#x3D; d.device_id</span><br><span class="line">		LEFT JOIN role_login_back e ON DATEDIFF(DATE(e.event_time),a.log_day) &#x3D; 13</span><br><span class="line">		AND a.user_id_d0 &#x3D; e.device_id</span><br><span class="line">		LEFT JOIN role_login_back f ON DATEDIFF(DATE(f.event_time),a.log_day) &#x3D; 29</span><br><span class="line">		AND a.user_id_d0 &#x3D; f.device_id</span><br><span class="line">		LEFT JOIN role_login_back g ON DATEDIFF(DATE(g.event_time),a.log_day) &#x3D; 89</span><br><span class="line">		AND a.user_id_d0 &#x3D; g.device_id</span><br><span class="line">	) AS temp</span><br><span class="line">GROUP BY</span><br><span class="line">log_day</span><br></pre></td></tr></table></figure>
+
+      
+      <!-- reward -->
+      
+    </div>
+    
+    
+      <!-- copyright -->
+      
+    <footer class="article-footer">
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
+
+
+    </footer>
+
+  </div>
+
+  
+
+  
+  
+  
+
+  
+
+</article>
+    
     <article id="post-hadooplzo" class="article article-type-post" itemscope
   itemprop="blogPost" data-scroll-reveal>
 
@@ -1067,431 +1450,13 @@ df.createOrReplaceTempView(&quot;log&quot;)</code></pre><p>row_number<br>rank<br
 
 </article>
     
-    <article id="post-SparkCore 01" class="article article-type-post" itemscope
-  itemprop="blogPost" data-scroll-reveal>
-
-  <div class="article-inner">
-    
-    <header class="article-header">
-       
-<h2 itemprop="name">
-  <a class="article-title" href="/2017/03/05/SparkCore%2001/"
-    >Spark Core 第一课</a
-  >
-</h2>
-  
-
-    </header>
-    
-
-    
-    <div class="article-meta">
-      <a href="/2017/03/05/SparkCore%2001/" class="article-date">
-  <time datetime="2017-03-05T12:43:27.000Z" itemprop="datePublished">2017-03-05</time>
-</a>
-      
-      
-      
-      
-    </div>
-    
-
-    
-
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-
-
-      
-
-      
-      <h1 id="Spark-Core01"><a href="#Spark-Core01" class="headerlink" title="Spark Core01"></a>Spark Core01</h1><p>学习目标：</p>
-<ol>
-<li>RDD 5大特性</li>
-<li>SparkCore 的编程规范</li>
-<li>RDD 创建方式</li>
-<li>RDD 的算子</li>
-</ol>
-<p>一. RDD 的5 大特性</p>
-<ul>
-<li><ol>
-<li>RDD 是 一系列的 partition ： A list of partition<br>比如一个数据 val data = Array(1,2,3,4,5,6,7,8,9)<br>会把数据分成一个一个的partition，比如<br>(1,2,3) , (4,5,6), (7,8,9)</li>
-</ol>
-</li>
-<li><ol start="2">
-<li>函数(方法) 是作用在每一个 partition 上的: A function for computing each split<br>比如 data.map(_ * 2)  表示 对 每个分区的 元素 * 2</li>
-</ol>
-</li>
-<li><ol start="3">
-<li>RDD 之间存在依赖关系：A list of dependency on other RDDS<br>这种依赖指的是 某个RDD 是由另外的RDD 计算推导出来的<br>比如 data.map(_ * 10 )  ==&gt;  data2<br>那么 data2中的 rdd就是由 data 每个元素 * 10 得到的</li>
-</ol>
-</li>
-<li><ol start="4">
-<li>对于K,V 结构的RDD，可以进行 partitioner，即把具有相同特征的RDD分到一组</li>
-</ol>
-</li>
-<li><ol start="5">
-<li>把计算拉到数据节点</li>
-</ol>
-</li>
-</ul>
-<p>二. SparKCore 的编程规范</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">val conf &#x3D; new SparkConf()</span><br><span class="line">  .setMaster(&quot;local[2]&quot;)  传入 master 的类型，一般测试传入 local[2] 即可 </span><br><span class="line">  .setAppName(this.getClass.getSimpleName)  app的名称</span><br><span class="line"></span><br><span class="line">val sc &#x3D; new SparkContext(conf)</span><br></pre></td></tr></table></figure>
-
-
-<p>如果不传入这两个会报错误，在源码中的体现：<br><img src="/2017/03/05/SparkCore%2001/HEXO/tedatablog/source/pictures/sparkcore01.png" alt="avatar"></p>
-<p>三.  RDD 的创建方式</p>
-<p>rdd创建方式一:  通过生成数据转换创建</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd1 &#x3D; sc.parallelize(List(1,2,3,4,5))</span><br><span class="line">rdd1: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[6] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd1.map(_*2).collect</span><br><span class="line">res4: Array[Int] &#x3D; Array(2, 4, 6, 8, 10)</span><br></pre></td></tr></table></figure>
-
-
-<p>rdd创建方式二：通过读取文件创建</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.textFile(&quot;file:&#x2F;&#x2F;&#x2F;home&#x2F;bdp&#x2F;tmp&#x2F;wc.data&quot;)</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[String] &#x3D; file:&#x2F;&#x2F;&#x2F;home&#x2F;bdp&#x2F;tmp&#x2F;wc.data MapPartitionsRDD[5] at textFile at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.collect</span><br><span class="line">res3: Array[String] &#x3D; Array(boming,boming,boming, niuniu,niuniu, simao)</span><br></pre></td></tr></table></figure>
-
-
-<p>rdd 创建方式三:<br>通过其他的rdd创建</p>
-<p>四.  RDD 算子</p>
-<p>RDD 算子可以分为两种类型：transformation 和 action<br>transformation 指的是中间的转换过程，是没有真正执行的<br>action 是真正执行的</p>
-<p>transformation 算子</p>
-<p>一定要记得，现在的操作都是对RDD 进行的操作，一定要转换成RDD</p>
-<ol>
-<li>map：作用在rdd 的每个元素上做相同的操作</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">val rdd &#x3D; sc.parallelize(Array(1,2,3,4,5,6))</span><br><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;)</span><br><span class="line">res6: Array[Int] &#x3D; Array(2, 4, 6, 8, 10, 12)</span><br></pre></td></tr></table></figure>
-
-
-
-
-<ol start="2">
-<li>filter： 过滤出符合条件的元素</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;).filter(_ &gt; 6)</span><br><span class="line">res8: Array[Int] &#x3D; Array(8, 10, 12)</span><br><span class="line"></span><br><span class="line">scala&gt; rdd.map(x &#x3D;&gt; &#123;x*2&#125;).filter(x &#x3D;&gt; &#123;x &gt; 6 &#125;)</span><br><span class="line">res9: Array[Int] &#x3D; Array(8, 10, 12)</span><br></pre></td></tr></table></figure>
-
-
-<ol start="3">
-<li>mapPartitions</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd.mapPartitions( par &#x3D;&gt; &#123;par.map(_*2)&#125;).collect</span><br><span class="line">res20: Array[Int] &#x3D; Array(2, 4, 6, 8, 10, 12)</span><br></pre></td></tr></table></figure>
-
-<p>这个 算子的作用, 比如 有 100个元素, 10个分区, 使用 map 要调用 100次, 使用 mapPartitions 只需10次<br>可以引申到 MySQL的connection, 使用 mapPartitions可以减少很多的连接</p>
-<ol start="4">
-<li>flatMap : map 之后把 元素拍扁</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">scala&gt;  val rdd2 &#x3D; sc.parallelize(Array(Array(1,2,3),Array(4,5,6),Array(7,8,9)))</span><br><span class="line">scala&gt; rdd2.flatMap(x &#x3D;&gt; x).collect</span><br><span class="line">res26: Array[Int] &#x3D; Array(1, 2, 3, 4, 5, 6, 7, 8, 9)</span><br></pre></td></tr></table></figure>
-
-
-
-
-<ol start="5">
-<li>mapPartitionWIthIndex</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">rdd1.mapPartitionsWithIndex((index, partition) &#x3D;&gt; &#123;</span><br><span class="line">  partition.map( x &#x3D;&gt; &#123;</span><br><span class="line">    println(s&quot;$&#123;index&#125;, $x&quot;)</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
-
-<p>把 partition 和 index 输出</p>
-<ol start="6">
-<li>mapValues<br>只对KV 结构的V做相同的操作</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.map((_,1)).mapValues(_*3).collect</span><br><span class="line">res4: Array[(String, Int)] &#x3D; Array((iphone11 7000 20,3), (hwpro30 5000 100,3), (xiaomi 3000 200,3), (sumsung 6000 1000,3))</span><br></pre></td></tr></table></figure>
-
-
-<ol start="7">
-<li>reduceByKey</li>
-</ol>
-<p>把相同的key的元素放在一块，再进行两两相邻的操作</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(List(1,2,1,2,3,6,3,1,5))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[11] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.map((_,1)).reduceByKey(_+_).collect</span><br><span class="line">res9: Array[(Int, Int)] &#x3D; Array((1,3), (6,1), (3,2), (5,1), (2,2))</span><br></pre></td></tr></table></figure>
-
-
-
-<ol start="8">
-<li>union<br>把相同类型的数据放在一起</li>
-</ol>
-<p>注意，rdd1 和 rdd2 如果类型不同，不能进行 union<br>比如 rdd1为 String，rdd2 为 Int，会报下面的错误</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.union(rdd2).collect</span><br><span class="line">&lt;console&gt;:28: error: type mismatch;</span><br><span class="line"> found   : org.apache.spark.rdd.RDD[Int]</span><br><span class="line"> required: org.apache.spark.rdd.RDD[String]</span><br><span class="line">       rdd1.union(rdd2).collect</span><br><span class="line"></span><br><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(Array(&quot;ok haixing&quot;))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[String] &#x3D; ParallelCollectionRDD[21] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd1.union(rdd2).collect</span><br><span class="line">res16: Array[String] &#x3D; Array(iphone11 7000 20, hwpro30 5000 100, xiaomi 3000 200, sumsung 6000 1000, ok haixing)</span><br></pre></td></tr></table></figure>
-
-
-<ol start="9">
-<li>distinct</li>
-</ol>
-<p>去除 rdd的重复的元素</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; val rdd2 &#x3D; sc.parallelize(List(1,2,1,2,3,6,3,1,5))</span><br><span class="line">rdd2: org.apache.spark.rdd.RDD[Int] &#x3D; ParallelCollectionRDD[23] at parallelize at &lt;console&gt;:24</span><br><span class="line"></span><br><span class="line">scala&gt; rdd2.distinct.collect</span><br><span class="line">res19: Array[Int] &#x3D; Array(1, 6, 3, 5, 2)</span><br></pre></td></tr></table></figure>
-
-
-<ol start="10">
-<li>groupByKey<br>把相同key的元素放到一组，得到的是 CompactBuffer 类型的value</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd2.map((_,1)).groupByKey().collect</span><br><span class="line">res27: Array[(Int, Iterable[Int])] &#x3D; Array((1,CompactBuffer(1, 1, 1)), (6,CompactBuffer(1)), (3,CompactBuffer(1, 1)), (5,CompactBuffer(1)), (2,CompactBuffer(1, 1)))</span><br></pre></td></tr></table></figure>
-
-
-<ol start="11">
-<li><p>groupBy<br>可以按照不同的分组条件进行分组<br>比如，对 value 进行分组<br>rdd.map((<em>,1)).groupBy(</em>._2).foreach(println)<br>输出：<br>因为value都是1，所以输出的就只有1组<br>(1,CompactBuffer((1,1), (2,1), (3,1), (4,1), (5,1), (6,1)))</p>
-</li>
-<li><p>join</p>
-</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">val rdd1 &#x3D; sc.textFile(&quot;data&#x2F;dept.txt&quot;）</span><br><span class="line">val rdd2 &#x3D; sc.textFile(&quot;data&#x2F;emp.txt&quot;)</span><br><span class="line"></span><br><span class="line">val deptRdd &#x3D; rdd1.map(x &#x3D;&gt; &#123;</span><br><span class="line">  val splits &#x3D; x.split(&quot;,&quot;)</span><br><span class="line">  (splits(0).trim, (splits(1).trim, splits(2).trim))</span><br><span class="line">&#125;)</span><br><span class="line">val empRdd &#x3D; rdd2.map(x &#x3D;&gt; &#123;</span><br><span class="line">  val splits &#x3D; x.split(&quot; &quot;)</span><br><span class="line">  (splits(4).trim, (splits(0).trim, splits(1).trim, splits(2).trim, splits(3).trim))</span><br><span class="line">&#125;)</span><br><span class="line">deptRdd.join(empRdd)</span><br><span class="line">deptRdd.leftOutJoin(empRdd)</span><br><span class="line">deptRdd.rightOutJoin(empRdd)</span><br><span class="line">deptRdd.fullOutJoin(empRdd)</span><br><span class="line">(20,(Some((RESEARCH,DALLAS)),Some((1002,bill,ceo,55))))</span><br><span class="line">(30,(Some((SALES,CHICAGO)),Some((1003,cindy,cw,32))))</span><br><span class="line">(40,(Some((OPERATIONS,BOSTON)),None))</span><br><span class="line">(10,(Some((ACCOUNTIN,NEW YORK)),Some((1001,bob,sales,30))))</span><br></pre></td></tr></table></figure>
-
-
-<ol start="13">
-<li>cogroup</li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">deptRdd.cogroup(empRdd).foreach(println)</span><br><span class="line">输出：</span><br><span class="line">(20,(CompactBuffer((RESEARCH,DALLAS)),CompactBuffer((1002,bill,ceo,55))))</span><br><span class="line">(30,(CompactBuffer((SALES,CHICAGO)),CompactBuffer((1003,cindy,cw,32))))</span><br><span class="line">(40,(CompactBuffer((OPERATIONS,BOSTON)),CompactBuffer()))</span><br><span class="line">(10,(CompactBuffer((ACCOUNTIN,NEW YORK)),CompactBuffer((1001,bob,sales,30))))</span><br><span class="line"></span><br><span class="line">join 和 从group的关系</span><br><span class="line">join 底层调用 了 从group</span><br><span class="line">def join[W](other: RDD[(K, W)], partitioner: Partitioner): RDD[(K, (V, W))] &#x3D; 				  self.withScope &#123;</span><br><span class="line">  this.cogroup(other, partitioner).flatMapValues( pair &#x3D;&gt;</span><br><span class="line">    for (v &lt;- pair._1.iterator; w &lt;- pair._2.iterator) yield (v, w)</span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-
-
-<ol start="14">
-<li>zipWithIndex<br>相当于给每个元素加个索引，形成K,V 结构    </li>
-</ol>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">scala&gt; rdd1.zipWithIndex.collectAsMap</span><br><span class="line">res18: scala.collection.Map[Int,Long] &#x3D; Map(2 -&gt; 1, 5 -&gt; 4, 4 -&gt; 3, 1 -&gt; 0, 3 -&gt; 2, 6 -&gt; 5)</span><br></pre></td></tr></table></figure>
-
-      
-      <!-- reward -->
-      
-    </div>
-    
-    
-      <!-- copyright -->
-      
-    <footer class="article-footer">
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
-
-
-    </footer>
-
-  </div>
-
-  
-
-  
-  
-  
-
-  
-
-</article>
-    
-    <article id="post-mysql双机热备" class="article article-type-post" itemscope
-  itemprop="blogPost" data-scroll-reveal>
-
-  <div class="article-inner">
-    
-    <header class="article-header">
-       
-<h2 itemprop="name">
-  <a class="article-title" href="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/"
-    >MySQL双击热备实现</a
-  >
-</h2>
-  
-
-    </header>
-    
-
-    
-    <div class="article-meta">
-      <a href="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/" class="article-date">
-  <time datetime="2016-03-28T12:43:27.000Z" itemprop="datePublished">2016-03-28</time>
-</a>
-      
-      
-      
-      
-    </div>
-    
-
-    
-
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-
-
-      
-
-      
-      <h1 id="mysql-双机热备"><a href="#mysql-双机热备" class="headerlink" title="mysql 双机热备"></a>mysql 双机热备</h1><h3 id="一-环境及注意事项"><a href="#一-环境及注意事项" class="headerlink" title="一. 环境及注意事项"></a>一. 环境及注意事项</h3><p>msyql双机热备即mysql 的 主主模式，即</p>
-<p>mysql的机器可以互相读写，保障了数据的同步</p>
-<p>下面是mysql 主主的实现过程:</p>
-<p>测试环境: CentOS 6.8</p>
-<p>主机 ip: 192.168.163.22;192.168.163.23</p>
-<p>配置注意项:</p>
-<ol>
-<li>两台主机的mysql 版本要一致</li>
-<li>两台mysql的初始状态要一致，即mysql库中的数据库要一致</li>
-<li>关闭防火墙</li>
-</ol>
-<h3 id="二-配置过程"><a href="#二-配置过程" class="headerlink" title="二. 配置过程"></a>二. 配置过程</h3><p>1.配置 msyql 配置文件:</p>
-<p>在 192.168.163.22 上的配置如下:</p>
-<p>vim /etc/my.cnf：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">log-bin&#x3D;mysql-bin  &#x2F;&#x2F;表示mysql的二进制日志，因为主主的实现是通过读取二进制日志的位置实现的</span><br><span class="line">binlog_format&#x3D;mixed &#x2F;&#x2F;二进制日志格式</span><br><span class="line">server-id&#x3D;22 &#x2F;&#x2F;server-id号，这个号码两台主机上一定不能一样,通常可取ip的最后一位</span><br><span class="line"></span><br><span class="line">read-only&#x3D;0 &#x2F;&#x2F;只读模式为False</span><br><span class="line">binlog-ignore-db&#x3D;mysql  </span><br><span class="line">binlog-ignore-db&#x3D;information_schema</span><br><span class="line">binlog-ignore-db&#x3D;performance_schema</span><br><span class="line">binlog-ignore-db&#x3D;sys  &#x2F;&#x2F; 这几段表示 忽略同步的数据库</span><br><span class="line"></span><br><span class="line">auto-increment-increment&#x3D;1</span><br><span class="line">auto-increment-offset&#x3D;1 &#x2F;&#x2F; 用于在 双主（多主循环）互相备份。 因为每台数据库服务器都可能在同一个表中插入数据，如果表有一个自动增长的主键，那么就会在多服务器上出现主键冲突。  解决这个问题的办法就是让每个数据库的自增主键不连续。  上图说是， 我假设需要将来可能需要10台服务器做备份， 所以auto-increment-increment 设为10.   而 auto-increment-offset&#x3D;1 表示这台服务器的序号。 从1开始， 不超过auto-increment-increment。</span><br><span class="line">这样做之后， 我在这台服务器上插入的第一个id就是 1， 第二行的id就是 11了， 而不是2</span><br><span class="line"></span><br><span class="line">replicate-ignore-db&#x3D;mysql</span><br><span class="line">replicate-ignore-db&#x3D;information_schema</span><br><span class="line">replicate-ignore-db&#x3D;performance_schema</span><br><span class="line">replicate-ignore-db&#x3D;sys &#x2F;&#x2F; 这几段表示 复制忽略的数据库</span><br><span class="line">relay_log&#x3D;mysqld-relay-bin &#x2F;&#x2F;中继日志</span><br><span class="line">log-slave-updates&#x3D;ON &#x2F;&#x2F;中继日志执行之后，这些变化是否需要计入自己的binarylog。 当你的B服务器需要作为另外一个服务器的主服务器的时候需要打开。  就是双主互相备份，或者多主循环备份。 我们这里需要， 所以打开。</span><br></pre></td></tr></table></figure>
-
-
-
-<p>在 192.168.163.23 上的配置如下:</p>
-<p>vim /etc/my.cnf:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">log-bin&#x3D;mysql-bin</span><br><span class="line">binlog_format&#x3D;mixed</span><br><span class="line">server-id&#x3D;23</span><br><span class="line"></span><br><span class="line">read-only&#x3D;0</span><br><span class="line">binlog-ignore-db&#x3D;mysql</span><br><span class="line">binlog-ignore-db&#x3D;information_schema</span><br><span class="line">binlog-ignore-db&#x3D;performance_schema</span><br><span class="line">binlog-ignore-db&#x3D;sys</span><br><span class="line">auto-increment-increment&#x3D;10</span><br><span class="line">auto-increment-offset&#x3D;2</span><br><span class="line"></span><br><span class="line">replicate-ignore-db&#x3D;mysql</span><br><span class="line">replicate-ignore-db&#x3D;information_schema</span><br><span class="line">replicate-ignore-db&#x3D;performance_schema</span><br><span class="line">replicate-ignore-db&#x3D;sys</span><br><span class="line">relay_log&#x3D;mysqld-relay-bin</span><br><span class="line">log-slave-updates&#x3D;ON</span><br></pre></td></tr></table></figure>
-
-
-<p>2.对两台主机进行授权:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">22上:</span><br><span class="line">GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.23&#39; identified by &#39;Bb123456@&#39;;</span><br><span class="line"></span><br><span class="line">23上:</span><br><span class="line">GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.22&#39; identified by &#39;Bb123456@&#39;;</span><br></pre></td></tr></table></figure>
-
-
-<p>该步骤的目的是让两台主机在连接时拥有权限，否则连接不被允许</p>
-<p>3.进行主从sql 设置:</p>
-<p>查看 两台主机的master 状态:</p>
-<p>22上:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls1.png" alt="avatar"></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">在 22 上执行:</span><br><span class="line">change master to master_host&#x3D;&#39;192.168.163.23&#39;,master_user&#x3D;&#39;root&#39;,master_password&#x3D;&#39;Bb123456@&#39;,master_log_file&#x3D;&#39;mysql-bin.000003&#39;,master_log_pos&#x3D;2266;</span><br></pre></td></tr></table></figure>
-
-
-<p>23上:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls2.png" alt="avatar"></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">在 23 上执行:</span><br><span class="line">change master to master_host&#x3D;&#39;192.168.163.23&#39;,master_user&#x3D;&#39;root&#39;,master_password&#x3D;&#39;Bb123456@&#39;,master_log_file&#x3D;&#39;mysql-bin.000007&#39;,master_log_pos&#x3D;503;</span><br></pre></td></tr></table></figure>
-
-
-<p>该操作就让mysql的两台主机 从该二级制日志的位置开始同步</p>
-<p>4.开启并查看同步状态:</p>
-<p>两台主机上都执行以下操作:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">start slave;</span><br></pre></td></tr></table></figure>
-<p><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls3.png" alt="avatar"></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">show slave status\G;</span><br></pre></td></tr></table></figure>
-<p><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls4.png" alt="avatar"></p>
-<p>—两台主机上只用 这两个为 Yes是才表示同步成功</p>
-<p>5.测试同步</p>
-<p>首先查看两台主机数据库的初始状态:<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls5.png" alt="avatar"></p>
-<p>然后在 22上删除 数据库 bigeye_dev<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls6.png" alt="avatar"></p>
-<p>可以看到，从库中的bigeye_dev也删除了</p>
-<p>最后到 23 上创建数据库 bigeye_dev<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls7.png" alt="avatar"></p>
-<p>可以看到，bigeye_dev 也被创建了</p>
-<p>报错:</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Error: &#39;Lost connection to MySQL server at &#39;reading initial communication packet&#39;, system error: 113&#39; errno: 2013 retry-time: 60 retries: 86400</span><br></pre></td></tr></table></figure>
-
-
-<p>原因:没有授权，导致连接时不被允许</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">解决:GRANT REPLICATION SLAVE ON *.* to &#39;root&#39;@&#39;192.168.163.22&#39; identified by &#39;Bb123456@&#39;;</span><br></pre></td></tr></table></figure>
-
-
-
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">报错:Fatal error: The slave I&#x2F;O thread stops because master and slave have equal MySQL server UUIDs; these UUIDs must be different for replication to work.</span><br></pre></td></tr></table></figure>
-
-
-<p>原因:UUID冲突</p>
-<p>解决:vi /var/lib/mysql/auto.cnf<br><img src="/2016/03/28/mysql%E5%8F%8C%E6%9C%BA%E7%83%AD%E5%A4%87/mysqls8.png" alt="avatar"></p>
-<p>这两个uuid改成不一致即可</p>
-
-      
-      <!-- reward -->
-      
-    </div>
-    
-    
-      <!-- copyright -->
-      
-    <footer class="article-footer">
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
-
-
-    </footer>
-
-  </div>
-
-  
-
-  
-  
-  
-
-  
-
-</article>
-    
-    <article id="post-shell三剑客" class="article article-type-post" itemscope
-  itemprop="blogPost" data-scroll-reveal>
-
-  <div class="article-inner">
-    
-    <header class="article-header">
-       
-<h2 itemprop="name">
-  <a class="article-title" href="/2015/04/23/shell%E4%B8%89%E5%89%91%E5%AE%A2/"
-    >shell 使用</a
-  >
-</h2>
-  
-
-    </header>
-    
-
-    
-    <div class="article-meta">
-      <a href="/2015/04/23/shell%E4%B8%89%E5%89%91%E5%AE%A2/" class="article-date">
-  <time datetime="2015-04-23T12:43:27.000Z" itemprop="datePublished">2015-04-23</time>
-</a>
-      
-      
-      
-      
-    </div>
-    
-
-    
-
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-
-
-      
-
-      
-      <h1 id="shell-三剑客-grep-sed-awk"><a href="#shell-三剑客-grep-sed-awk" class="headerlink" title="shell 三剑客- grep, sed, awk"></a>shell 三剑客- grep, sed, awk</h1><h3 id="一-awk"><a href="#一-awk" class="headerlink" title="一. awk"></a>一. awk</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">awk  &#39;条件类型1&#123;动作1&#125; 条件类型2&#123;动作2&#125; ...&#39;  filename</span><br><span class="line"></span><br><span class="line">awk -F &#39;:&#39;  &#39;&#123;OFS&#x3D;&quot;:&quot;; $3&gt;100,$7&#x3D;$3+$4 &#123;print $0&#125;&#39; 12.txt</span><br><span class="line">要区分动作和条件，条件可以不用加符号，动作要加符号 &#123; &#125;</span><br><span class="line"></span><br><span class="line">例如</span><br><span class="line">awk -F &#39;:&#39; &#39;&#123;sum&#x3D;sum+$3&#125; END &#123;print sum&#125;&#39; 12.txt</span><br><span class="line">因为 sum&#x3D;sum+$3 和 print sum都是动作，所以要用 &#123; &#125;</span><br><span class="line"></span><br><span class="line">awk的内置变量 </span><br><span class="line">NR 表示行数</span><br><span class="line">NF 表示列数 $NF&#x3D;7</span><br><span class="line"></span><br><span class="line">awk的打印功能</span><br><span class="line">awk -F &#39;:&#39;  &#39;&#123;print $1,$3&#125;&#39;  12.txt 打印文档12.txt的第1和第三段</span><br><span class="line"></span><br><span class="line">awk的匹配功能</span><br><span class="line">awk -F &#39;:&#39;  &#39;&#x2F;rr&#x2F;&#39; 12.txt  匹配 12.txt中带有rr的字符</span><br><span class="line"></span><br><span class="line">awk中的判断与句匹配</span><br><span class="line">awk -F &#39;:&#39; &#39;$3&gt;100 &#123;print $7&#125;&#39; 12.txt</span><br><span class="line">awk -F &#39;:&#39; &#39;$3&#x3D;&#x3D;$4;$1~&quot;root&quot; &#123;print $7&#125;&#39; 12.txt</span><br></pre></td></tr></table></figure>
-
-
-
-<h3 id="二-grep-用法"><a href="#二-grep-用法" class="headerlink" title="二. grep 用法"></a>二. grep 用法</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">grep &#39;过滤内容’ 文档</span><br><span class="line">grep  &#39;abc&#39;  1.txt</span><br><span class="line"></span><br><span class="line">grep -E 或egrep  代表可以匹配的时候脱义特殊字符，例如 + ？</span><br><span class="line">grep --color 过滤时候给匹配到的文档加上颜色 </span><br><span class="line">grep -v 表示过滤出和 grep 匹配相反的内容</span><br></pre></td></tr></table></figure>
-
-
-<h3 id="三-sed-用法"><a href="#三-sed-用法" class="headerlink" title="三. sed 用法"></a>三. sed 用法</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">sed 打印功能</span><br><span class="line">sed   -n &#39;1,5&#39;p 12.txt 表示打印文档12.txt 的1-5段</span><br><span class="line">注意要加 -n 和p </span><br><span class="line">不加-n 会打印所有行</span><br><span class="line">p表示打印意思</span><br><span class="line">sed的脱义符号是 -r</span><br><span class="line"></span><br><span class="line">sed匹配功能</span><br><span class="line">sed  -n &#39;&#x2F;匹配内容&#x2F;&#39;p 12.txt</span><br><span class="line">注意也有 -n 和p</span><br><span class="line"></span><br><span class="line">sed同时进行多个任务</span><br><span class="line">sed -e &#39;&#x2F;root&#x2F;p&#39; -e &#39;&#x2F;body&#39;p 12.txt</span><br><span class="line">sed &#39;&#x2F;root&#x2F;p;&#x2F;body&#x2F;&#39;p 12.txt</span><br><span class="line"></span><br><span class="line">sed 删除功能</span><br><span class="line">sed  &#39;1,5&#39;d 12.txt 表示显示删除文档12.txt的1-5段</span><br><span class="line">sed -i ‘1,5&#39; 12.txt 表示真实删除文档12.txt的1-5段</span><br><span class="line"></span><br><span class="line">sed替换功能</span><br><span class="line">sed  &#39;s&#x2F;被替换内容&#x2F;替换内容&#x2F;g&#39; 文档 全部替换</span><br><span class="line">sed  &#39;1,5s&#x2F;被替换内容&#x2F;替换内容&#x2F;g&#39; 文档 部分替换，替换1-5行</span><br><span class="line"></span><br><span class="line">注意一个语句</span><br><span class="line">sed &#39;s&#x2F;(^[0-9a-zA-Z].*)(:.*:)(.*$)&#x2F;\3\2\1&#x2F;&#39; 12.txt</span><br><span class="line">表示把12.txt最后部分和开始部分调换，注意没有g</span><br></pre></td></tr></table></figure>
-
-
-
-      
-      <!-- reward -->
-      
-    </div>
-    
-    
-      <!-- copyright -->
-      
-    <footer class="article-footer">
-      
-      
-  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/tedata/" rel="tag">tedata</a></li></ul>
-
-
-    </footer>
-
-  </div>
-
-  
-
-  
-  
-  
-
-  
-
-</article>
-    
   </article>
   
 
   
   <nav class="page-nav">
     
-    <a class="extend prev" rel="prev" href="/">上一页</a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+    <a class="extend prev" rel="prev" href="/">上一页</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/3/">下一页</a>
   </nav>
   
 </section>
@@ -1544,13 +1509,13 @@ df.createOrReplaceTempView(&quot;log&quot;)</code></pre><p>row_number<br>rank<br
 <nav class="navbar">
   
   <div class="logo">
-    <a href="/"><img src="/images/ayer-side.svg" alt="TedWang 的大数据"></a>
+    <a href="/"><img src="/images/xingji.png" alt="TedWang 的大数据"></a>
   </div>
   
   <ul class="nav nav-main">
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/">主页</a>
+      <a class="nav-item-link" href="/index.html">主页</a>
     </li>
     
     <li class="nav-item">
@@ -1562,7 +1527,7 @@ df.createOrReplaceTempView(&quot;log&quot;)</code></pre><p>row_number<br>rank<br
     </li>
     
     <li class="nav-item">
-      <a class="nav-item-link" href="/tags">标签</a>
+      <a class="nav-item-link" href="/tags/">标签</a>
     </li>
     
   </ul>
